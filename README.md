@@ -4,6 +4,10 @@
 
 ![LlamaControl Screenshot](screenshot.png)
 
+**Mini HUD widget -- always-on-top, draggable**
+
+![Widget Screenshot](screenshot-widget.png)
+
 ---
 
 ## Overview
