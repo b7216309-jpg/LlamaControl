@@ -1303,7 +1303,7 @@ async function fetchAndDisplayLogs() {
     for (let i = startIdx; i < newLines.length; i++) {
       const line = newLines[i];
       if (!line.trim()) continue;
-      if (/all slots are idle|done request: GET \/(slots|health|metrics)|new request: GET \/(slots|health|metrics)/.test(line)) continue;
+      if (/all slots are idle|done request: GET \/(slots|health|metrics)|new request: GET \/(slots|health|metrics)|cancel task, id_task/.test(line)) continue;
       let lvl = 'INFO';
       if (/\b(error|err|fail)\b/i.test(line)) lvl = 'ERR';
       else if (/\b(warn|warning)\b/i.test(line)) lvl = 'WARN';
