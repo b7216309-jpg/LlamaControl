@@ -867,7 +867,7 @@ try { Object.assign(AS, JSON.parse(localStorage.getItem(APP_SETTINGS_KEY) || '{}
 function saveAS() { localStorage.setItem(APP_SETTINGS_KEY, JSON.stringify(AS)); }
 let _pollTimer = null, _logTimer = null;
 
-const t0=Date.now();
+let t0=0; // LLM server uptime origin (set when server detected running)
 let ttftH=[],prevReq=0,peakTps=0,reqHist=[];
 let alertCount=0,alertDebounce={},alertLog=[];
 const peaks={cpu:0,gpuUtil:0,gpuTemp:0,gpuPow:0,vram:0,ram:0,tps:0};
@@ -1170,9 +1170,11 @@ async function _doUpdate(){
     if(sbLlm){sbLlm.textContent='● STOPPED';sbLlm.style.color='var(--rd)';}
     const tbSt=document.getElementById('tb-status');
     if(tbSt){tbSt.textContent='● stopped';tbSt.style.color='var(--rd)';}
+    t0=0; // reset LLM uptime
     return;
   }
   // Server is running (metrics endpoint responded)
+  if(!t0) t0=Date.now(); // start LLM uptime counter
   {
     const tbSt=document.getElementById('tb-status');
     if(tbSt){tbSt.textContent='● running';tbSt.style.color='var(--gr)';}
@@ -1457,6 +1459,7 @@ function _renderHistory() {
 function clock(){
   const now=new Date();
   setT('sb-clk',now.toTimeString().slice(0,8));
+  if(!t0){setT('sb-up','--');return;}
   const up=Math.floor((Date.now()-t0)/1000);
   const d=Math.floor(up/86400),h=Math.floor((up%86400)/3600),mn=Math.floor((up%3600)/60),s=up%60;
   setT('sb-up', d>0 ? d+'d '+String(h).padStart(2,'0')+':'+String(mn).padStart(2,'0') : h>0 ? h+'h'+String(mn).padStart(2,'0') : mn+'m'+String(s).padStart(2,'0')+'s');
@@ -1817,6 +1820,7 @@ async function llmAction(action) {
 
     if (result && result.ok) {
       _isRunning = (action !== 'stop');
+      t0 = _isRunning ? Date.now() : 0; // reset LLM uptime
       if (statusEl) { statusEl.textContent = _isRunning ? '● running' : '● stopped'; statusEl.style.color = _isRunning ? 'var(--gr)' : 'var(--rd)'; }
       if (lhsEl) { lhsEl.textContent = _isRunning ? '● RUNNING' : '● STOPPED'; lhsEl.style.color = _isRunning ? 'var(--gr)' : 'var(--rd)'; }
       if (sbEl) { sbEl.textContent = _isRunning ? '● RUNNING' : '● STOPPED'; sbEl.style.color = _isRunning ? 'var(--gr)' : 'var(--rd)'; }
