@@ -431,6 +431,7 @@ if(window.__module){module=window.__module;if(window.__exports)exports=window.__
 
 <!-- ══════════ LLM AREA ══════════ -->
 <div class="pane" id="llm-area">
+  <div id="llm-boxes" style="flex:1;display:flex;flex-direction:column;overflow:hidden;min-height:0;">
 
   <!-- HERO -->
   <div class="box" id="box-hero" style="flex:0 0 auto;">
@@ -578,7 +579,7 @@ if(window.__module){module=window.__module;if(window.__exports)exports=window.__
   <div class="drag-h" data-a="box-log" data-b="box-chat"></div>
 
   <!-- CHAT / TERMINAL TABS -->
-  <div class="box" id="box-chat" style="flex:1 0 120px;min-height:120px;">
+  <div class="box" id="box-chat" style="flex:1 0 60px;">
     <div class="box-title" style="color:var(--cy)">
       <span class="tab-btn active" id="tab-chat" onclick="switchTab('chat')" style="cursor:pointer;padding:0 6px;">Chat</span>
       <span style="color:var(--fg3)">|</span>
@@ -592,15 +593,18 @@ if(window.__module){module=window.__module;if(window.__exports)exports=window.__
         <button id="btn-think-toggle" onclick="toggleThinkVisibility()" style="background:none;border:1px solid var(--bdr);color:var(--am);font-family:var(--f);font-size:8px;cursor:pointer;padding:0 5px;line-height:1.3;">think:on</button>
       </div>
       <div id="chat-msgs" style="flex:1;overflow-y:auto;overflow-x:hidden;padding:4px 10px;display:flex;flex-direction:column;gap:4px;min-height:0;"></div>
-      <div style="display:flex;gap:0;border-top:1px solid var(--bdr);flex-shrink:0;margin-top:auto;">
-        <textarea id="chat-input" rows="2" placeholder="Message... (Enter to send, Shift+Enter for newline)" style="flex:1;resize:none;background:var(--bg1);color:var(--fg);border:none;outline:none;font-family:var(--f);font-size:11px;padding:5px 8px;line-height:1.4;"></textarea>
-        <button id="chat-send" style="width:52px;background:transparent;border:none;border-left:1px solid var(--bdr);color:var(--cy);font-family:var(--f);font-size:10px;cursor:pointer;flex-shrink:0;transition:background .1s;" onmouseenter="this.style.background='var(--bg2)'" onmouseleave="this.style.background='transparent'">send</button>
-      </div>
     </div>
     <!-- TERMINAL PANEL -->
     <div id="panel-term" style="display:none;flex:1;margin-top:13px;min-height:0;overflow:hidden;"></div>
     <!-- WSL2 PANEL -->
     <div id="panel-wsl" style="display:none;flex:1;margin-top:13px;min-height:0;overflow:hidden;"></div>
+  </div>
+  </div><!-- /llm-boxes -->
+
+  <!-- CHAT INPUT BAR — anchored at bottom of llm-area, outside overflow zone -->
+  <div id="chat-input-bar" style="display:flex;gap:0;border-top:1px solid var(--bdr);flex-shrink:0;background:var(--bg);">
+    <textarea id="chat-input" rows="2" placeholder="Message... (Enter to send, Shift+Enter for newline)" style="flex:1;resize:none;background:var(--bg1);color:var(--fg);border:none;outline:none;font-family:var(--f);font-size:11px;padding:5px 8px;line-height:1.4;"></textarea>
+    <button id="chat-send" style="width:52px;background:transparent;border:none;border-left:1px solid var(--bdr);color:var(--cy);font-family:var(--f);font-size:10px;cursor:pointer;flex-shrink:0;transition:background .1s;" onmouseenter="this.style.background='var(--bg2)'" onmouseleave="this.style.background='transparent'">send</button>
   </div>
 
 </div><!-- /llm-area -->
@@ -1281,6 +1285,8 @@ async function fetchAndDisplayLogs() {
     c.innerHTML = '';
     logs.split('\n').forEach(line => {
       if (!line.trim()) return;
+      // Filter out noisy poll/idle lines
+      if (/all slots are idle|done request: GET \/(slots|health|metrics)|new request: GET \/(slots|health|metrics)/.test(line)) return;
       let lvl = 'INFO';
       if (/\b(error|err|fail)\b/i.test(line)) lvl = 'ERR';
       else if (/\b(warn|warning)\b/i.test(line)) lvl = 'WARN';
@@ -1483,8 +1489,6 @@ function restoreSizes(){
       }else{
         const e=document.getElementById(id);
         if(e&&h){
-          // Enforce minimum height for box-chat to keep input bar visible
-          if(id==='box-chat'){const px=parseInt(h,10);if(!isNaN(px)&&px<120)h='120px';}
           e.style.height=h;e.style.flex='none';
         }
       }
@@ -1517,7 +1521,7 @@ document.querySelectorAll('.drag-h').forEach(handle=>{
     const a=document.getElementById(aId),b=document.getElementById(bId);
     if(!a||!b)return;
     const dy=e.clientY-sy;
-    const minA=aId==='box-chat'?120:38, minB=bId==='box-chat'?120:38;
+    const minA=38, minB=38;
     const na=Math.max(minA,sah+dy),nb=Math.max(minB,sbh-dy);
     a.style.flex='none';a.style.height=na+'px';
     b.style.flex='none';b.style.height=nb+'px';
@@ -1528,9 +1532,6 @@ document.querySelectorAll('.drag-h').forEach(handle=>{
 // ── INIT ──
 async function init() {
   restoreSizes();
-  // Ensure box-chat is tall enough for the input bar after restore
-  const _bc=document.getElementById('box-chat');
-  if(_bc&&_bc.offsetHeight<120){_bc.style.height='';_bc.style.flex='';saveSizes();}
 
   // Start companion for system metrics
   try { await window.api.startCompanion(); } catch {}
@@ -2561,6 +2562,9 @@ function switchTab(id) {
     const btn = document.getElementById('tab-'+t);
     if (btn) { btn.classList.toggle('active', t===id); if(t!==id) btn.style.color='var(--fg3)'; }
   }
+  // Show/hide anchored chat input bar
+  const inputBar = document.getElementById('chat-input-bar');
+  if (inputBar) inputBar.style.display = id==='chat' ? 'flex' : 'none';
   // Lazy-init terminals
   if (id === 'term' && !_termInstances.term) initTerminal('term', 'powershell.exe');
   if (id === 'wsl'  && !_termInstances.wsl)  initTerminal('wsl', 'wsl.exe');
