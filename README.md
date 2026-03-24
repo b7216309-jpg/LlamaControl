@@ -162,7 +162,7 @@ LlamaControl is an Electron desktop application that provides a real-time, termi
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-username/LlamaControl.git
+git clone https://github.com/b7216309-jpg/LlamaControl.git
 cd LlamaControl
 
 # Install Node.js dependencies (Electron, xterm.js, node-pty)
