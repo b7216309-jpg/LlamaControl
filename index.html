@@ -148,6 +148,8 @@ input[type=number]{-moz-appearance:textfield;}
 /* boxes */
 .box{position:relative;border:1px solid var(--bdr);display:flex;flex-direction:column;overflow:hidden;min-height:0;transition:border-color .3s;}
 .box-title{position:absolute;top:-1px;left:2ch;font-weight:700;font-size:11px;padding:0 1ch;background:var(--bg);white-space:nowrap;z-index:1;}
+.box-collapse{position:absolute;right:-1ch;top:0;background:var(--bg);border:1px solid var(--bdr);color:var(--fg3);font-family:var(--f);font-size:9px;width:16px;height:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;line-height:1;transition:color .1s,border-color .1s;}
+.box-collapse:hover{color:var(--fg);border-color:var(--fg2);}
 .box-body{padding:5px 10px 4px 12px;flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;display:flex;flex-direction:column;gap:2px;margin-top:13px;min-width:0;width:100%;}
 
 /* alert flash animations */
@@ -531,7 +533,7 @@ if(window.__module){module=window.__module;if(window.__exports)exports=window.__
 
   <!-- FLAGS -->
   <div class="box" id="box-flg" style="flex:0 0 auto;min-height:36px;">
-    <div class="box-title" style="color:var(--fg2)">┤ Launch Flags ├</div>
+    <div class="box-title" style="color:var(--fg2)">┤ Launch Flags ├ <button class="box-collapse" onclick="toggleBox('box-flg')">-</button></div>
     <div class="box-body" style="flex-direction:row;flex-wrap:wrap;gap:3px;padding:4px 12px;align-content:flex-start;">
       <span class="badge b-cy">--ctx 81920</span><span class="badge b-or">--n-gpu-layers 99</span>
       <span class="badge b-gr">--flash-attn</span><span class="badge b-cy">--cache-type-k q8_0</span>
@@ -543,14 +545,14 @@ if(window.__module){module=window.__module;if(window.__exports)exports=window.__
 
   <!-- SLOT -->
   <div class="box" id="box-slt" style="flex:0 0 auto;">
-    <div class="box-title" style="color:var(--fg2)">┤ Slot 0 · <span id="slt-st" style="color:var(--fg2)">idle</span> ├</div>
+    <div class="box-title" style="color:var(--fg2)">┤ Slot 0 · <span id="slt-st" style="color:var(--fg2)">idle</span> ├ <button class="box-collapse" onclick="toggleBox('box-slt')">-</button></div>
     <div class="box-body" id="slt-body" style="gap:3px;padding:4px 12px;"></div>
   </div>
   <div class="drag-h" data-a="box-slt" data-b="box-hist"></div>
 
   <!-- HISTORY -->
   <div class="box" id="box-hist" style="flex:0 0 auto;">
-    <div class="box-title" style="color:var(--fg2)">┤ Request History ├</div>
+    <div class="box-title" style="color:var(--fg2)">┤ Request History ├ <button class="box-collapse" onclick="toggleBox('box-hist')">-</button></div>
     <div class="box-body" style="padding:0;">
       <div class="tbl-wrap">
         <table class="tbl">
@@ -1280,15 +1282,22 @@ function addLogEntry(lvl,msg){
 let _lastLogContent = '';
 async function fetchAndDisplayLogs() {
   try {
-    const logs = await window.api.getLogs(40);
-    if (logs === _lastLogContent || logs === '(no logs)') return;
-    _lastLogContent = logs;
+    const raw = await window.api.getLogs(80);
+    if (raw === '(no logs)' || raw === _lastLogContent) return;
+    const oldLines = _lastLogContent ? _lastLogContent.split('\n') : [];
+    _lastLogContent = raw;
+    const newLines = raw.split('\n');
+    // Find where old content ends to only append new lines
+    let startIdx = 0;
+    if (oldLines.length > 0) {
+      const lastOld = oldLines[oldLines.length - 1];
+      if (lastOld) { for (let i = newLines.length - 1; i >= 0; i--) { if (newLines[i] === lastOld) { startIdx = i + 1; break; } } }
+    }
     const c = document.getElementById('log-lines');
-    c.innerHTML = '';
-    logs.split('\n').forEach(line => {
-      if (!line.trim()) return;
-      // Filter out noisy poll/idle lines
-      if (/all slots are idle|done request: GET \/(slots|health|metrics)|new request: GET \/(slots|health|metrics)/.test(line)) return;
+    for (let i = startIdx; i < newLines.length; i++) {
+      const line = newLines[i];
+      if (!line.trim()) continue;
+      if (/all slots are idle|done request: GET \/(slots|health|metrics)|new request: GET \/(slots|health|metrics)/.test(line)) continue;
       let lvl = 'INFO';
       if (/\b(error|err|fail)\b/i.test(line)) lvl = 'ERR';
       else if (/\b(warn|warning)\b/i.test(line)) lvl = 'WARN';
@@ -1297,9 +1306,11 @@ async function fetchAndDisplayLogs() {
       const ts = line.match(/^(\d{4}[-/]\d{2}[-/]\d{2}\s+\d{2}:\d{2}:\d{2})/);
       const tsStr = ts ? ts[1] : '';
       const msg = tsStr ? line.slice(tsStr.length).trim() : line;
-      d.innerHTML = '<span class="log-ts">'+(tsStr || new Date().toTimeString().slice(0,8))+'</span><span class="log-lvl lvl-'+lvl+'">['+lvl+']</span><span class="log-msg">'+msg+'</span>';
+      d.innerHTML = '<span class="log-ts">'+(tsStr || new Date().toTimeString().slice(0,8))+'</span><span class="log-lvl lvl-'+lvl+'">['+lvl+']</span><span class="log-msg new">'+msg+'</span>';
       c.appendChild(d);
-    });
+      setTimeout(()=>{const m=d.querySelector('.log-msg');if(m)m.classList.remove('new');},900);
+    }
+    while(c.children.length>(AS.maxLogLines||100))c.removeChild(c.firstChild);
   } catch {}
 }
 
@@ -1455,6 +1466,28 @@ function _renderHistory() {
   });
 }
 
+// ── BOX COLLAPSE ──
+const _collapsed = JSON.parse(localStorage.getItem('nerv-collapsed')||'{}');
+function toggleBox(id) {
+  const box = document.getElementById(id);
+  if (!box) return;
+  const body = box.querySelector('.box-body');
+  const btn = box.querySelector('.box-collapse');
+  if (!body) return;
+  const hide = body.style.display !== 'none';
+  body.style.display = hide ? 'none' : '';
+  if (btn) btn.textContent = hide ? '+' : '-';
+  // Collapse: shrink box to title-only height
+  if (hide) { box.dataset.prevFlex = box.style.flex; box.style.flex = '0 0 16px'; box.style.minHeight = '16px'; }
+  else { box.style.flex = box.dataset.prevFlex || '0 0 auto'; box.style.minHeight = ''; }
+  _collapsed[id] = hide;
+  localStorage.setItem('nerv-collapsed', JSON.stringify(_collapsed));
+}
+// Restore collapsed state on load
+function restoreCollapsed() {
+  for (const [id, val] of Object.entries(_collapsed)) { if (val) toggleBox(id); }
+}
+
 // ── CLOCK ──
 function clock(){
   const now=new Date();
@@ -1535,6 +1568,7 @@ document.querySelectorAll('.drag-h').forEach(handle=>{
 // ── INIT ──
 async function init() {
   restoreSizes();
+  restoreCollapsed();
 
   // Start companion for system metrics
   try { await window.api.startCompanion(); } catch {}
