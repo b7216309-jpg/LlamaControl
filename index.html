@@ -1,0 +1,2637 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>LlamaControl · TUI</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
+
+:root {
+  --bg:#0c0c0c;--bg1:#111;--bg2:#181818;
+  --fg:#c8c093;--fg2:#727169;--fg3:#49483e;
+  --or:#fe8019;--am:#fabd2f;--gr:#b8bb26;
+  --cy:#8ec07c;--bl:#83a598;--rd:#fb4934;
+  --vi:#d3869b;--wh:#ebdbb2;--bdr:#3c3836;
+  --f:'JetBrains Mono',monospace;
+}
+
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{background:var(--bg);color:var(--fg);font-family:var(--f);font-size:12px;line-height:1.4;width:100%;height:100%;overflow:hidden;user-select:none;}
+#log-lines,#log-lines *,.chat-msg-text,#chat-msgs{user-select:text;cursor:text;}
+
+/* hide number input spinners */
+input[type=number]::-webkit-inner-spin-button,
+input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0;}
+input[type=number]{-moz-appearance:textfield;}
+
+/* global scrollbar theme */
+::-webkit-scrollbar{width:5px;height:5px;}
+::-webkit-scrollbar-track{background:var(--bg);}
+::-webkit-scrollbar-thumb{background:var(--fg3);border-radius:2px;}
+::-webkit-scrollbar-thumb:hover{background:var(--fg2);}
+::-webkit-scrollbar-corner{background:var(--bg);}
+
+#app{display:grid;grid-template-rows:22px 1fr 18px;height:100vh;width:100vw;}
+#main{display:flex;overflow:hidden;min-height:0;}
+.s-row{display:grid;grid-template-columns:90px 1fr 38px;align-items:center;gap:6px;height:16px;flex-shrink:0;}
+.s-lbl{font-size:10px;color:var(--fg2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.s-val{font-size:10px;color:var(--wh);text-align:right;font-weight:700;font-family:var(--f);}
+/* block gauge replaces range input */
+.blk-gauge{
+  font-family:var(--f);font-size:11px;letter-spacing:1px;
+  cursor:pointer;user-select:none;white-space:nowrap;
+  overflow:hidden;width:100%;display:block;line-height:1;
+  color:var(--or);transition:color .1s;
+}
+.blk-gauge:hover{color:var(--wh);}
+.blk-gauge.active{color:var(--am);}
+.s-num{background:var(--bg2);color:var(--fg);border:1px solid var(--bdr);font-family:var(--f);font-size:10px;padding:1px 4px;outline:none;width:100%;}
+.s-num:focus{border-color:var(--or);}
+.s-btn{background:transparent;border:1px solid var(--bdr);color:var(--fg2);font-family:var(--f);font-size:9px;cursor:pointer;padding:1px 5px;transition:all .1s;white-space:nowrap;}
+.s-btn:hover{background:var(--bg2);color:var(--wh);border-color:var(--fg2);}
+.s-btn-full{width:100%;background:transparent;border:1px solid var(--bdr);color:var(--fg2);font-family:var(--f);font-size:10px;cursor:pointer;padding:3px 0;transition:all .1s;}
+.s-btn-full:hover{background:var(--bg2);color:var(--wh);border-color:var(--fg2);}
+.s-btn-red{border-color:rgba(251,73,52,.3);color:var(--rd);}
+.s-btn-red:hover{background:rgba(251,73,52,.12);border-color:var(--rd);color:var(--rd);}
+.s-check{font-size:10px;color:var(--fg2);display:flex;align-items:center;gap:0;flex-shrink:0;cursor:pointer;}
+.s-check label{cursor:pointer;display:flex;align-items:center;gap:6px;}
+.s-check input[type=checkbox]{display:none;}
+.s-check .chk{
+  font-family:var(--f);font-size:11px;width:14px;height:14px;
+  display:flex;align-items:center;justify-content:center;
+  border:1px solid var(--bdr);background:var(--bg2);
+  color:var(--or);flex-shrink:0;line-height:1;
+  transition:border-color .1s,background .1s;
+}
+.s-check input:checked + .chk{border-color:var(--or);background:rgba(254,128,25,.12);color:var(--or);}
+.s-check input:checked + .chk::before{content:'▪';}
+.s-check input:not(:checked) + .chk::before{content:'';}
+.s-check:hover .chk{border-color:var(--fg2);}
+.s-sel{width:100%;background:var(--bg2);color:var(--fg);border:1px solid var(--bdr);font-family:var(--f);font-size:10px;padding:2px 4px;outline:none;cursor:pointer;}
+.s-sel:focus{border-color:var(--or);}
+.s-note{font-size:9px;color:var(--fg3);letter-spacing:.5px;}
+/* sampler item */
+.sampler-item{display:flex;align-items:center;gap:6px;padding:2px 4px;font-size:10px;color:var(--fg2);border:1px solid transparent;cursor:grab;user-select:none;}
+.sampler-item:hover{border-color:var(--bdr);color:var(--wh);}
+.sampler-item.drag-over{border-color:var(--or);background:rgba(254,128,25,.06);}
+.sampler-handle{color:var(--fg3);font-size:9px;flex-shrink:0;}
+/* stop tag */
+.stop-tag{display:flex;align-items:center;gap:3px;background:var(--bg2);border:1px solid var(--bdr);font-size:9px;color:var(--fg2);padding:1px 4px;}
+.stop-tag button{background:none;border:none;color:var(--fg3);cursor:pointer;font-family:var(--f);font-size:9px;padding:0;line-height:1;}
+.stop-tag button:hover{color:var(--rd);}
+
+.chat-msg{display:flex;flex-direction:column;gap:1px;max-width:100%;}
+.chat-msg-role{font-size:9px;letter-spacing:1px;flex-shrink:0;}
+.role-user{color:var(--fg2);}
+.role-assistant{color:var(--cy);}
+.role-thinking{color:var(--am);}
+.chat-msg-text{font-size:11px;line-height:1.45;color:var(--fg);word-break:break-word;white-space:pre-wrap;}
+.chat-msg.thinking .chat-msg-text{color:var(--am);font-size:10px;opacity:.75;}
+.chat-msg.user .chat-msg-text{color:var(--wh);}
+.chat-cursor{display:inline-block;width:7px;height:11px;background:var(--cy);animation:cur .8s step-end infinite;vertical-align:text-bottom;margin-left:1px;}
+@keyframes cur{0%,100%{opacity:1}50%{opacity:0}}
+#chat-input::placeholder{color:var(--fg3);}
+
+#topbar{
+  display:flex;align-items:center;justify-content:space-between;
+  border-bottom:1px solid var(--bdr);background:var(--bg1);
+  padding:0 8px;height:22px;flex-shrink:0;overflow:hidden;
+  -webkit-app-region: drag;
+}
+.tb-info{display:flex;align-items:center;gap:10px;font-size:10px;color:var(--fg2);}
+.tb-info span{color:var(--fg3);}
+.tb-info strong{color:var(--fg);font-weight:400;}
+.tb-controls{display:flex;align-items:center;gap:6px; -webkit-app-region: no-drag;}
+/* llm action buttons */
+.btn-llm{
+  font-size:9px;font-family:var(--f);
+  border:1px solid;padding:1px 7px;cursor:pointer;
+  background:transparent;transition:background .12s,color .12s;
+  letter-spacing:.5px;
+}
+.btn-start{color:var(--gr);border-color:var(--gr);}
+.btn-start:hover{background:var(--gr);color:var(--bg);}
+.btn-stop{color:var(--rd);border-color:var(--rd);}
+.btn-stop:hover{background:var(--rd);color:var(--bg);}
+.btn-reboot{color:var(--am);border-color:var(--am);}
+.btn-reboot:hover{background:var(--am);color:var(--bg);}
+/* window chrome buttons */
+.tb-sep{width:1px;height:14px;background:var(--bdr);margin:0 4px;}
+.win-btn{
+  width:13px;height:13px;border:1px solid;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  font-size:8px;font-family:var(--f);background:transparent;
+  transition:background .1s;line-height:1;
+}
+.win-min{color:var(--fg2);border-color:var(--bdr);}
+.win-min:hover{background:var(--bdr);color:var(--wh);}
+.win-max{color:var(--fg2);border-color:var(--bdr);}
+.win-max:hover{background:var(--bdr);color:var(--wh);}
+.win-cls{color:var(--rd);border-color:rgba(251,73,52,.4);}
+.win-cls:hover{background:var(--rd);color:var(--bg);}
+
+/* drag handles */
+.drag-v{width:6px;flex-shrink:0;background:var(--bg1);border-left:1px solid var(--bdr);border-right:1px solid var(--bdr);cursor:col-resize;display:flex;align-items:center;justify-content:center;writing-mode:vertical-rl;font-size:8px;color:var(--fg3);letter-spacing:-2px;transition:background .1s;}
+.drag-v:hover,.drag-v.on{background:var(--bg2);color:var(--fg2);}
+.drag-v::before{content:'⋮⋮';}
+.drag-h{height:6px;flex-shrink:0;background:var(--bg1);border-top:1px solid var(--bdr);border-bottom:1px solid var(--bdr);cursor:row-resize;display:flex;align-items:center;justify-content:center;font-size:7px;color:var(--fg3);transition:background .1s;}
+.drag-h:hover,.drag-h.on{background:var(--bg2);color:var(--fg2);}
+.drag-h::before{content:'··········';}
+
+/* panes */
+.pane{display:flex;flex-direction:column;overflow:hidden;min-height:0;min-width:0;}
+#sidebar{flex-shrink:0;width:340px;border-right:1px solid var(--bdr);}
+#llm-area{flex:1;min-width:0;}
+/* flex children that contain gauges must clamp their width */
+.flex-col{display:flex;flex-direction:column;gap:3px;min-width:0;overflow:hidden;}
+
+/* boxes */
+.box{position:relative;border:1px solid var(--bdr);display:flex;flex-direction:column;overflow:hidden;min-height:0;transition:border-color .3s;}
+.box-title{position:absolute;top:-1px;left:2ch;font-weight:700;font-size:11px;padding:0 1ch;background:var(--bg);white-space:nowrap;z-index:1;}
+.box-body{padding:5px 10px 4px 12px;flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;display:flex;flex-direction:column;gap:2px;margin-top:13px;min-width:0;width:100%;}
+
+/* alert flash animations */
+@keyframes flash-warn{0%,100%{border-color:var(--bdr)}40%,60%{border-color:var(--am);box-shadow:inset 0 0 0 1px var(--am)}}
+@keyframes flash-crit{0%,100%{border-color:var(--bdr)}40%,60%{border-color:var(--rd);box-shadow:inset 0 0 0 1px var(--rd)}}
+.a-warn{animation:flash-warn .5s ease 4;}
+.a-crit{animation:flash-crit .3s ease 6;}
+
+/* gauge */
+.g-row{display:grid;grid-template-columns:3ch minmax(0,1fr) 7ch;align-items:center;gap:6px;height:13px;flex-shrink:0;}
+.g-lbl{color:var(--fg2);font-size:10px;text-align:right;white-space:nowrap;}
+.g-track{height:8px;background:var(--bg2);border:1px solid var(--fg3);position:relative;overflow:hidden;min-width:0;width:100%;}
+.g-fill{position:absolute;top:0;left:0;bottom:0;max-width:100%;transition:width .7s ease,background .5s ease;}
+.g-val{font-size:9px;color:var(--wh);text-align:right;transition:color .5s;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+
+/* sparkline */
+.spark{font-size:9px;letter-spacing:0px;color:var(--fg3);font-family:var(--f);line-height:1;margin-left:2px;transition:color .5s;}
+
+/* kv */
+.kv{display:flex;justify-content:space-between;font-size:10px;min-height:12px;align-items:center;flex-shrink:0;}
+.kv .k{color:var(--fg2);}.kv .v{color:var(--wh);font-weight:700;transition:color .5s;}
+.kv .v.or{color:var(--or);}.kv .v.gr{color:var(--gr);}.kv .v.cy{color:var(--cy);}
+.kv .v.am{color:var(--am);}.kv .v.rd{color:var(--rd);}.kv .v.vi{color:var(--vi);}
+.kv .v.bl{color:var(--bl);}.kv .v.dm{color:var(--fg2);}
+
+.div{border-bottom:1px solid var(--bdr);margin:2px 0;flex-shrink:0;}
+.sec{font-size:9px;color:var(--fg2);letter-spacing:2px;text-transform:uppercase;flex-shrink:0;}
+
+/* badges */
+.badges{display:flex;gap:4px;flex-wrap:wrap;flex-shrink:0;}
+.badge{font-size:9px;padding:0 3px;border:1px solid;}
+.b-cy{color:var(--cy);border-color:var(--cy);background:rgba(142,192,124,.08);}
+.b-or{color:var(--or);border-color:var(--or);background:rgba(254,128,25,.08);}
+.b-gr{color:var(--gr);border-color:var(--gr);background:rgba(184,187,38,.08);}
+.b-am{color:var(--am);border-color:var(--am);background:rgba(250,189,47,.08);}
+.b-vi{color:var(--vi);border-color:var(--vi);background:rgba(211,134,155,.08);}
+.b-rd{color:var(--rd);border-color:var(--rd);background:rgba(251,73,52,.08);}
+.b-dm{color:var(--fg2);border-color:var(--bdr);}
+
+/* table */
+.tbl{width:100%;border-collapse:collapse;font-size:10px;table-layout:fixed;}
+.tbl th{color:var(--fg2);text-align:left;font-weight:400;border-bottom:1px solid var(--bdr);padding:2px 4px;font-size:9px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.tbl td{padding:2px 4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.tbl tr:hover td{background:var(--bg2);}
+/* table scroll wrapper — adds room for box-title overlay */
+.tbl-wrap{overflow-y:auto;overflow-x:hidden;flex:1;min-height:0;padding-top:2px;}
+
+/* log */
+.log-line{display:flex;gap:8px;padding:1px 8px;min-height:14px;align-items:center;font-size:10px;flex-shrink:0;overflow:hidden;}
+.log-line:hover{background:var(--bg2);}
+.log-ts{color:var(--fg3);flex-shrink:0;font-size:9px;white-space:nowrap;}
+.log-lvl{flex-shrink:0;font-weight:700;width:5ch;font-size:9px;white-space:nowrap;}
+.lvl-INFO{color:var(--cy);}.lvl-WARN{color:var(--am);}.lvl-ERR{color:var(--rd);}.lvl-DBG{color:var(--fg2);}
+.log-msg{color:var(--fg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;}.log-msg.new{color:var(--gr);}
+
+/* alert badge */
+.alert-badge{background:var(--rd);color:var(--bg);font-size:9px;font-weight:700;padding:0 4px;min-width:16px;text-align:center;}
+.alert-badge.zero{background:var(--fg3);color:var(--bg2);}
+
+/* stall indicator */
+.stall{color:var(--am);font-size:9px;}
+.stall.crit{color:var(--rd);animation:flash-crit .5s ease infinite;}
+
+/* mini HUD */
+.mini-row{display:grid;grid-template-columns:3ch minmax(0,1fr) 5ch;align-items:center;gap:7px;height:12px;}
+.mini-k{font-size:9px;color:var(--fg2);text-align:right;white-space:nowrap;}
+.mini-track{height:6px;background:var(--bg2);border:1px solid var(--fg3);position:relative;overflow:hidden;min-width:0;}
+.mini-fill{position:absolute;top:0;left:0;bottom:0;transition:width .7s ease,background .5s ease;}
+.mini-v{font-size:9px;color:var(--wh);text-align:right;white-space:nowrap;font-weight:700;}
+
+/* statusbar */
+#statusbar{border-top:1px solid var(--bdr);background:var(--bg1);display:flex;align-items:center;height:18px;padding:0 6px;gap:0;font-size:11px;overflow:hidden;}
+.sb-seg{display:flex;align-items:center;height:100%;padding:0 10px;gap:6px;border-right:1px solid var(--bdr);white-space:nowrap;}
+.sb-k{color:var(--fg2);}.sb-v{color:var(--wh);font-weight:700;transition:color .5s;}
+.sb-clock{color:var(--or);font-weight:700;margin-left:auto;padding-right:6px;}
+.sb-ticker{flex:1;overflow:hidden;color:var(--fg3);font-size:9px;white-space:nowrap;}
+.sb-ticker span{display:inline-block;animation:scrl 60s linear infinite;}
+@keyframes scrl{0%{transform:translateX(100%)}100%{transform:translateX(-200%)}}
+/* tabs */
+.tab-btn{font-size:10px;letter-spacing:1px;transition:color .1s;}
+.tab-btn:hover{color:var(--wh)!important;}
+.tab-btn.active{color:var(--cy)!important;font-weight:700;}
+</style>
+<link rel="stylesheet" href="node_modules/@xterm/xterm/css/xterm.css">
+<script>
+// Neutralize Node.js globals so UMD libs fall through to browser globals
+if(typeof module!=='undefined'){window.__module=module;window.__exports=typeof exports!=='undefined'?exports:undefined;module=undefined;exports=undefined;}
+</script>
+<script src="node_modules/@xterm/xterm/lib/xterm.js"></script>
+<script src="node_modules/@xterm/addon-fit/lib/addon-fit.js"></script>
+<script>
+// Restore Node.js globals
+if(window.__module){module=window.__module;if(window.__exports)exports=window.__exports;delete window.__module;delete window.__exports;}
+</script>
+</head>
+<body>
+<div id="app">
+<div id="topbar">
+  <div class="tb-info" style="min-width:0;overflow:hidden;">
+    <strong id="tb-model" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;">LlamaControl</strong>
+    <span>&middot;</span>
+    <strong id="tb-status" style="color:var(--fg2);flex-shrink:0;">● --</strong>
+  </div>
+  <div class="tb-controls" style="flex-shrink:0;">
+    <button class="btn-llm btn-start" onclick="llmAction('start')" title="Start llama-server">start</button>
+    <button class="btn-llm btn-stop"  onclick="llmAction('stop')"  title="Stop llama-server">stop</button>
+    <button class="btn-llm btn-reboot" onclick="llmAction('reboot')" title="Restart llama-server">reboot</button>
+    <button class="win-btn" onclick="toggleAppSettings(event)" title="App settings" style="color:var(--fg2);border-color:var(--bdr);width:auto;padding:0 4px;font-size:9px;margin-left:4px;">&#9881;</button>
+    <div class="tb-sep"></div>
+    <button class="win-btn" onclick="toggleMini()" title="Mini mode" style="color:var(--cy);border-color:rgba(142,192,124,.35);width:auto;padding:0 5px;font-size:8px;letter-spacing:1px;">HUD</button>
+    <div class="tb-sep"></div>
+    <button class="win-btn win-min" onclick="window.api.minimizeWindow()" title="Minimize">&#9472;</button>
+    <button class="win-btn win-max" onclick="window.api.maximizeWindow()" title="Maximize/Restore">&#9633;</button>
+    <button class="win-btn win-cls" onclick="window.api.closeWindow()" title="Close">&#10005;</button>
+  </div>
+</div>
+
+<!-- ══════════ MINI HUD ══════════ -->
+<div id="mini-hud" style="display:none;flex-direction:column;background:var(--bg1);border:1px solid var(--bdr);position:fixed;bottom:24px;right:16px;z-index:9000;min-width:260px;font-family:var(--f);">
+
+  <!-- mini topbar -->
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:3px 8px;background:var(--bg);border-bottom:1px solid var(--bdr);" id="mini-drag-bar">
+    <span id="mini-model" style="font-size:9px;color:var(--fg2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;">LLM MONITOR</span>
+    <div style="display:flex;gap:5px;align-items:center;flex-shrink:0;">
+      <span id="mini-status" style="font-size:9px;color:var(--gr);font-weight:700;">● --</span>
+    </div>
+  </div>
+
+  <!-- mini gauges -->
+  <div style="padding:6px 10px;display:flex;flex-direction:column;gap:3px;">
+
+    <div class="mini-row">
+      <span class="mini-k">CPU</span>
+      <div class="mini-track"><div class="mini-fill" id="m-cpu-bar" style="width:0%"></div></div>
+      <span class="mini-v" id="m-cpu-v">--%</span>
+    </div>
+    <div class="mini-row">
+      <span class="mini-k">GPU</span>
+      <div class="mini-track"><div class="mini-fill" id="m-gpu-bar" style="width:0%"></div></div>
+      <span class="mini-v" id="m-gpu-v">--%</span>
+    </div>
+    <div class="mini-row">
+      <span class="mini-k">VRAM</span>
+      <div class="mini-track"><div class="mini-fill" id="m-vram-bar" style="width:0%"></div></div>
+      <span class="mini-v" id="m-vram-v">--</span>
+    </div>
+    <div class="mini-row">
+      <span class="mini-k">RAM</span>
+      <div class="mini-track"><div class="mini-fill" id="m-ram-bar" style="width:0%"></div></div>
+      <span class="mini-v" id="m-ram-v">--</span>
+    </div>
+
+    <div style="border-top:1px solid var(--bdr);margin:2px 0;"></div>
+
+    <div style="display:flex;justify-content:space-between;font-size:9px;">
+      <span><span style="color:var(--fg2)">Temp</span> <span style="color:var(--am);font-weight:700;" id="m-gtemp">--</span></span>
+      <span><span style="color:var(--fg2)">Power</span> <span style="color:var(--or);font-weight:700;" id="m-gpow">--</span></span>
+      <span><span style="color:var(--fg2)">Fan</span> <span style="color:var(--fg2);font-weight:700;" id="m-gfan">--</span></span>
+    </div>
+
+    <div style="border-top:1px solid var(--bdr);margin:2px 0;"></div>
+
+    <div class="mini-row">
+      <span class="mini-k" style="color:var(--or)">t/s</span>
+      <div class="mini-track"><div class="mini-fill" id="m-tps-bar" style="width:0%;background:var(--or)"></div></div>
+      <span class="mini-v" id="m-tps-v" style="color:var(--or)">--</span>
+    </div>
+    <div style="display:flex;justify-content:space-between;font-size:9px;">
+      <span><span style="color:var(--fg2)">Prompt</span> <span style="color:var(--cy);font-weight:700;" id="m-ptoks">--</span></span>
+      <span><span style="color:var(--fg2)">Gen</span> <span style="color:var(--gr);font-weight:700;" id="m-gtoks">--</span></span>
+      <span><span style="color:var(--fg2)">Peak</span> <span style="color:var(--fg2);font-weight:700;" id="m-peak">--</span></span>
+    </div>
+
+    <div style="border-top:1px solid var(--bdr);margin:2px 0;"></div>
+
+    <div style="display:flex;gap:5px;">
+      <button class="btn-llm btn-start" onclick="llmAction('start')" style="flex:1;text-align:center;">start</button>
+      <button class="btn-llm btn-stop"  onclick="llmAction('stop')"  style="flex:1;text-align:center;">stop</button>
+      <button class="btn-llm btn-reboot" onclick="llmAction('reboot')" style="flex:1;text-align:center;">reboot</button>
+    </div>
+
+  </div>
+</div>
+<div id="main">
+
+<!-- ══════════ SIDEBAR ══════════ -->
+<div class="pane" id="sidebar">
+
+  <!-- CPU -->
+  <div class="box" id="box-cpu" style="flex:0 0 auto;">
+    <div class="box-title" style="color:var(--gr)"><span id="title-cpu">┤ CPU ├</span></div>
+    <div class="box-body">
+      <div class="kv">
+        <span class="k" style="display:flex;align-items:center;gap:4px;">Total <button onclick="toggleCpuCompact()" style="background:none;border:1px solid var(--bdr);color:var(--fg3);font-family:var(--f);font-size:7px;cursor:pointer;padding:0 3px;line-height:1.1;" id="cpu-toggle-btn" title="Toggle cores">▼</button></span>
+        <span style="display:flex;align-items:center;gap:6px;min-width:0;overflow:hidden;">
+          <span class="spark" id="sp-cpu" style="max-width:60px;overflow:hidden;display:inline-block;white-space:nowrap;"></span>
+          <span class="v or" id="cpu-tot" style="flex-shrink:0;">--%</span>
+        </span>
+      </div>
+      <div id="cpu-details">
+      <div class="div"></div>
+      <div id="cores-wrap"></div>
+      <div class="div"></div>
+      </div>
+      <div class="kv"><span class="k">Freq</span><span class="v dm" id="cpu-freq">--</span></div>
+    </div>
+  </div>
+  <div class="drag-h" data-a="box-cpu" data-b="box-gpu"></div>
+
+  <!-- GPU -->
+  <div class="box" id="box-gpu" style="flex:0 0 auto;">
+    <div class="box-title" style="color:var(--cy)" id="title-gpu">┤ GPU ├</div>
+    <div class="box-body">
+      <div class="g-row">
+        <span class="g-lbl">Util</span>
+        <div class="g-track"><div class="g-fill" id="g-gpuu" style="width:0%"></div></div>
+        <span class="g-val" id="v-gpuu">--%</span>
+      </div>
+      <div class="g-row">
+        <span class="g-lbl">VRAM</span>
+        <div class="g-track"><div class="g-fill" id="g-vram" style="width:0%"></div></div>
+        <span class="g-val" id="v-vram">--</span>
+      </div>
+      <div class="div"></div>
+      <div class="kv"><span class="k">Temp</span><span class="v am" id="v-gtem">--°C</span></div>
+      <div class="kv"><span class="k">Power</span><span class="v or" id="v-gpow">-- W</span></div>
+      <div class="kv"><span class="k">Core clk</span><span class="v dm" id="v-gclk">-- MHz</span></div>
+    </div>
+  </div>
+  <div class="drag-h" data-a="box-gpu" data-b="box-mem"></div>
+
+  <!-- MEM -->
+  <div class="box" id="box-mem" style="flex:0 0 auto;">
+    <div class="box-title" style="color:var(--bl)" id="title-ram">┤ RAM ├</div>
+    <div class="box-body">
+      <div class="g-row"><span class="g-lbl">Use</span><div class="g-track"><div class="g-fill" id="g-muse" style="width:0%"></div></div><span class="g-val" id="v-muse">--</span></div>
+    </div>
+  </div>
+  <div class="drag-h" data-a="box-mem" data-b="box-net"></div>
+
+  <!-- NET -->
+  <div class="box" id="box-net" style="flex:0 0 auto;">
+    <div class="box-title" style="color:var(--am)">┤ NET ├</div>
+    <div class="box-body">
+      <div class="g-row"><span class="g-lbl" style="color:var(--gr)">▼</span><div class="g-track"><div class="g-fill" id="g-ndl" style="width:0%"></div></div><span class="g-val" id="v-ndl">--</span></div>
+      <div class="g-row"><span class="g-lbl" style="color:var(--or)">▲</span><div class="g-track"><div class="g-fill" id="g-nul" style="width:0%;background:var(--or)"></div></div><span class="g-val" id="v-nul">--</span></div>
+      <div class="div"></div>
+      <div class="kv"><span class="k">Total RX</span><span class="v dm" id="v-nrx">--</span></div>
+      <div class="kv"><span class="k">Total TX</span><span class="v dm" id="v-ntx">--</span></div>
+    </div>
+  </div>
+  <div class="drag-h" data-a="box-net" data-b="box-dsk"></div>
+
+  <!-- DISK -->
+  <div class="box" id="box-dsk" style="flex:0 0 auto;">
+    <div class="box-title" style="color:var(--fg2)">┤ Storage ├</div>
+    <div class="box-body" id="disk-body"></div>
+  </div>
+  <div class="drag-h" data-a="box-dsk" data-b="box-prc"></div>
+
+  <!-- PROCS -->
+  <div class="box" id="box-prc" style="flex:1;min-height:60px;">
+    <div class="box-title" style="color:var(--fg2)">┤ Processes · <span id="proc-cnt">0</span> ├</div>
+    <div class="box-body" style="padding:0;">
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <colgroup>
+            <col style="width:52px"><col style="width:auto"><col style="width:60px">
+            <col style="width:38px"><col style="width:40px">
+          </colgroup>
+          <thead><tr><th>PID</th><th>Program</th><th>User</th><th style="text-align:right">CPU%</th><th style="text-align:right">Mem</th></tr></thead>
+          <tbody id="proc-tb"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /sidebar -->
+
+<div class="drag-v" id="drag-main"></div>
+
+<!-- ══════════ LLM AREA ══════════ -->
+<div class="pane" id="llm-area">
+
+  <!-- HERO -->
+  <div class="box" id="box-hero" style="flex:0 0 auto;">
+    <div class="box-title" style="color:var(--or)" id="title-hero">┤ LLM ├</div>
+    <div class="box-body" style="flex-direction:row;gap:16px;padding:5px 12px;flex-wrap:wrap;">
+
+      <div style="display:flex;flex-direction:column;gap:2px;min-width:100px;">
+        <div class="kv"><span class="k">Status</span><span class="v gr" id="lhs-st">● --</span></div>
+        <div class="kv"><span class="k">Backend</span><span class="v cy">CUDA</span></div>
+        <div class="kv"><span class="k">Layers</span><span class="v">99/99</span></div>
+        <div class="kv"><span class="k">Threads</span><span class="v">4</span></div>
+      </div>
+
+      <div style="border-left:1px solid var(--bdr)"></div>
+
+      <div style="flex:1;min-width:0;overflow:hidden;display:flex;flex-direction:column;gap:3px;">
+        <div style="display:flex;align-items:center;gap:8px;min-width:0;">
+          <span style="font-size:10px;color:var(--fg2);flex-shrink:0">GEN</span>
+          <span style="color:var(--or);font-weight:700;font-size:15px;flex-shrink:0" id="h-tps">--</span>
+          <span style="color:var(--fg2);font-size:9px;flex-shrink:0">t/s</span>
+          <span class="spark" id="sp-tps" style="margin-left:4px;overflow:hidden;min-width:0;"></span>
+        </div>
+        <div class="g-track" style="height:10px;width:100%;"><div class="g-fill" id="g-htps" style="width:0%;height:100%"></div></div>
+        <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
+          <span style="font-size:10px;color:var(--fg2)">PREFILL</span>
+          <span style="color:var(--gr);font-weight:700;" id="h-pts">--</span>
+          <span style="color:var(--fg2);font-size:9px">t/s</span>
+        </div>
+        <div class="g-track" style="height:6px;width:100%;"><div class="g-fill" id="g-hpts" style="width:0%;height:100%"></div></div>
+      </div>
+
+      <div style="border-left:1px solid var(--bdr)"></div>
+
+      <div style="display:flex;flex-direction:column;gap:2px;min-width:115px;">
+        <div class="kv"><span class="k">TTFT</span><span class="v cy" id="h-ttft">-- ms</span></div>
+        <div class="kv"><span class="k">TTFT avg</span><span class="v dm" id="h-ttft-avg">-- ms</span></div>
+        <div class="kv"><span class="k">Slot</span><span class="v" id="h-slot">0/1</span></div>
+        <div class="kv"><span class="k">Queue</span><span class="v dm" id="h-q">0</span></div>
+      </div>
+
+      <div style="border-left:1px solid var(--bdr)"></div>
+
+      <div style="display:flex;flex-direction:column;gap:2px;min-width:105px;">
+        <div class="kv"><span class="k">Total req</span><span class="v" id="h-req">--</span></div>
+        <div class="kv"><span class="k">Req/s ok</span><span class="v gr" id="h-suc">--%</span></div>
+        <div class="kv"><span class="k">Req/min</span><span class="v or" id="h-rpm">--</span></div>
+      </div>
+
+    </div>
+  </div>
+  <div class="drag-h" data-a="box-hero" data-b="box-kvc"></div>
+
+  <!-- KV / CTX / LAT / TOK / THINK -->
+  <div class="box" id="box-kvc" style="flex:0 0 auto;">
+    <div class="box-title" style="color:var(--vi)">┤ Context · Throughput ├</div>
+    <div class="box-body" style="flex-direction:row;gap:14px;padding:5px 12px;">
+
+      <!-- CTX -->
+      <div style="flex:1;min-width:0;overflow:hidden;display:flex;flex-direction:column;gap:3px;">
+        <div class="sec" id="ctx-cap-label">Context</div>
+        <div style="display:flex;height:9px;gap:1px;border:1px solid var(--fg3);overflow:hidden;flex-shrink:0;">
+          <div id="ctx-sys"  style="background:var(--vi);transition:flex .8s"></div>
+          <div id="ctx-thk"  style="background:var(--am);transition:flex .8s"></div>
+          <div id="ctx-prom" style="background:var(--cy);transition:flex .8s"></div>
+          <div id="ctx-out"  style="background:var(--gr);transition:flex .8s"></div>
+          <div id="ctx-free" style="background:var(--bg2);flex:1;transition:flex .8s"></div>
+        </div>
+        <div style="display:flex;gap:6px;font-size:9px;color:var(--fg2);flex-shrink:0;flex-wrap:wrap;">
+          <span style="color:var(--vi)">■ sys</span>
+          <span style="color:var(--am)">■ think</span>
+          <span style="color:var(--cy)">■ prompt</span>
+          <span style="color:var(--gr)">■ out</span>
+          <span style="color:var(--fg3)">■ free</span>
+        </div>
+        <div class="g-row"><span class="g-lbl">Use</span><div class="g-track"><div class="g-fill" id="g-ctx" style="width:0%"></div></div><span class="g-val" id="v-ctx" style="color:var(--cy)">--%</span></div>
+        <div class="kv"><span class="k">Used</span><span class="v cy" id="v-ctxu">--</span></div>
+        <div class="kv"><span class="k">Free</span><span class="v gr" id="v-ctxf">--</span></div>
+        <div class="kv"><span class="k">Think tok</span><span class="v am" id="v-think">--</span></div>
+        <div class="kv"><span class="k">Output tok</span><span class="v gr" id="v-ctxo">--</span></div>
+      </div>
+
+      <div style="border-left:1px solid var(--bdr)"></div>
+
+      <!-- TOK TOTALS -->
+      <div style="flex:1;min-width:0;overflow:hidden;display:flex;flex-direction:column;gap:3px;">
+        <div class="sec">Tokens · session</div>
+        <div class="g-row"><span class="g-lbl">Prom</span><div class="g-track"><div class="g-fill" id="g-tprom" style="width:0%;background:var(--cy)"></div></div><span class="g-val" id="v-tprom" style="color:var(--cy)">--</span></div>
+        <div class="g-row"><span class="g-lbl">Thk</span><div class="g-track"><div class="g-fill" id="g-tthk" style="width:0%;background:var(--am)"></div></div><span class="g-val" id="v-tthk" style="color:var(--am)">--</span></div>
+        <div class="g-row"><span class="g-lbl">Out</span><div class="g-track"><div class="g-fill" id="g-tout" style="width:0%;background:var(--gr)"></div></div><span class="g-val" id="v-tout" style="color:var(--gr)">--</span></div>
+        <div class="div"></div>
+        <div class="kv"><span class="k">Peak t/s</span><span class="v dm" id="v-peak">--</span></div>
+      </div>
+
+    </div>
+  </div>
+  <div class="drag-h" data-a="box-kvc" data-b="box-flg"></div>
+
+  <!-- FLAGS -->
+  <div class="box" id="box-flg" style="flex:0 0 auto;min-height:36px;">
+    <div class="box-title" style="color:var(--fg2)">┤ Launch Flags ├</div>
+    <div class="box-body" style="flex-direction:row;flex-wrap:wrap;gap:3px;padding:4px 12px;align-content:flex-start;">
+      <span class="badge b-cy">--ctx 81920</span><span class="badge b-or">--n-gpu-layers 99</span>
+      <span class="badge b-gr">--flash-attn</span><span class="badge b-cy">--cache-type-k q8_0</span>
+      <span class="badge b-cy">--cache-type-v q8_0</span><span class="badge b-am">--threads 4</span>
+      <span class="badge b-rd">--no-context-shift</span><span class="badge b-vi">--reasoning deepseek</span>
+    </div>
+  </div>
+  <div class="drag-h" data-a="box-flg" data-b="box-slt"></div>
+
+  <!-- SLOT -->
+  <div class="box" id="box-slt" style="flex:0 0 auto;">
+    <div class="box-title" style="color:var(--fg2)">┤ Slot 0 · <span id="slt-st" style="color:var(--fg2)">idle</span> ├</div>
+    <div class="box-body" id="slt-body" style="gap:3px;padding:4px 12px;"></div>
+  </div>
+  <div class="drag-h" data-a="box-slt" data-b="box-hist"></div>
+
+  <!-- HISTORY -->
+  <div class="box" id="box-hist" style="flex:0 0 auto;">
+    <div class="box-title" style="color:var(--fg2)">┤ Request History ├</div>
+    <div class="box-body" style="padding:0;">
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <colgroup>
+            <col style="width:62px"><col style="width:auto">
+            <col style="width:44px"><col style="width:44px">
+            <col style="width:38px"><col style="width:52px"><col style="width:52px">
+          </colgroup>
+          <thead><tr>
+            <th>Time</th><th>Prompt preview</th>
+            <th style="text-align:right">Think</th><th style="text-align:right">Out</th>
+            <th style="text-align:right">t/s</th><th style="text-align:right">TTFT</th><th style="text-align:right">Total</th>
+          </tr></thead>
+          <tbody id="hist-tb"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="drag-h" data-a="box-hist" data-b="box-log"></div>
+
+  <!-- LOG -->
+  <div class="box" id="box-log" style="flex:1;min-height:60px;">
+    <div class="box-title" style="color:var(--fg2)">┤ llama-server · inference log ├</div>
+    <div id="log-lines" style="flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;display:flex;flex-direction:column;justify-content:flex-end;margin-top:13px;padding-bottom:2px;"></div>
+  </div>
+  <div class="drag-h" data-a="box-log" data-b="box-chat"></div>
+
+  <!-- CHAT / TERMINAL TABS -->
+  <div class="box" id="box-chat" style="flex:1 0 120px;min-height:120px;">
+    <div class="box-title" style="color:var(--cy)">
+      <span class="tab-btn active" id="tab-chat" onclick="switchTab('chat')" style="cursor:pointer;padding:0 6px;">Chat</span>
+      <span style="color:var(--fg3)">|</span>
+      <span class="tab-btn" id="tab-term" onclick="switchTab('term')" style="cursor:pointer;padding:0 6px;color:var(--fg3);">Terminal</span>
+      <span style="color:var(--fg3)">|</span>
+      <span class="tab-btn" id="tab-wsl" onclick="switchTab('wsl')" style="cursor:pointer;padding:0 6px;color:var(--fg3);">WSL2</span>
+    </div>
+    <!-- CHAT PANEL -->
+    <div id="panel-chat" style="display:flex;flex-direction:column;flex:1;margin-top:13px;min-height:0;overflow:hidden;">
+      <div style="display:flex;justify-content:flex-end;padding:0 6px;flex-shrink:0;">
+        <button id="btn-think-toggle" onclick="toggleThinkVisibility()" style="background:none;border:1px solid var(--bdr);color:var(--am);font-family:var(--f);font-size:8px;cursor:pointer;padding:0 5px;line-height:1.3;">think:on</button>
+      </div>
+      <div id="chat-msgs" style="flex:1;overflow-y:auto;overflow-x:hidden;padding:4px 10px;display:flex;flex-direction:column;gap:4px;min-height:0;"></div>
+      <div style="display:flex;gap:0;border-top:1px solid var(--bdr);flex-shrink:0;margin-top:auto;">
+        <textarea id="chat-input" rows="2" placeholder="Message... (Enter to send, Shift+Enter for newline)" style="flex:1;resize:none;background:var(--bg1);color:var(--fg);border:none;outline:none;font-family:var(--f);font-size:11px;padding:5px 8px;line-height:1.4;"></textarea>
+        <button id="chat-send" style="width:52px;background:transparent;border:none;border-left:1px solid var(--bdr);color:var(--cy);font-family:var(--f);font-size:10px;cursor:pointer;flex-shrink:0;transition:background .1s;" onmouseenter="this.style.background='var(--bg2)'" onmouseleave="this.style.background='transparent'">send</button>
+      </div>
+    </div>
+    <!-- TERMINAL PANEL -->
+    <div id="panel-term" style="display:none;flex:1;margin-top:13px;min-height:0;overflow:hidden;"></div>
+    <!-- WSL2 PANEL -->
+    <div id="panel-wsl" style="display:none;flex:1;margin-top:13px;min-height:0;overflow:hidden;"></div>
+  </div>
+
+</div><!-- /llm-area -->
+
+<div class="drag-v" id="drag-settings"></div>
+
+<!-- ══════════ SETTINGS COLUMN ══════════ -->
+<div class="pane" id="settings-col" style="width:280px;border-left:1px solid var(--bdr);overflow-y:auto;overflow-x:hidden;flex-shrink:0;transition:width .2s ease;">
+
+  <!-- COLLAPSE TOGGLE -->
+  <div id="settings-toggle" onclick="toggleSettings()" style="
+    position:sticky;top:0;z-index:10;
+    display:flex;align-items:center;justify-content:space-between;
+    padding:3px 8px;background:var(--bg1);
+    border-bottom:1px solid var(--bdr);cursor:pointer;
+    font-size:9px;color:var(--fg2);letter-spacing:2px;
+    flex-shrink:0;height:18px;white-space:nowrap;overflow:hidden;
+  " title="Toggle settings">
+    <span id="settings-label">SETTINGS</span>
+    <span id="settings-arrow" style="color:var(--or);font-size:11px;flex-shrink:0;">›</span>
+  </div>
+
+  <div id="settings-inner">
+
+  <!-- PROFILE -->
+  <div class="box" style="flex:0 0 auto;border-left:none;border-right:none;border-top:none;">
+    <div class="box-title" style="color:var(--cy)">┤ Profile ├</div>
+    <div class="box-body" style="gap:5px;">
+      <select class="s-sel" id="s-profile" onchange="switchProfile(this.value)" style="width:100%"></select>
+      <div style="display:flex;gap:4px;">
+        <input type="text" class="s-num" id="s-newprof" placeholder="new profile..." style="flex:1;">
+        <button class="s-btn" onclick="saveAsProfile()">save</button>
+        <button class="s-btn s-btn-red" onclick="deleteCurrentProfile()">del</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODEL -->
+  <div class="box" style="flex:0 0 auto;border-left:none;border-right:none;">
+    <div class="box-title" style="color:var(--am)">┤ Model ├</div>
+    <div class="box-body" style="gap:5px;">
+      <select class="s-sel" id="s-model" onchange="selectModel(this.value)" style="width:100%"></select>
+      <button class="s-btn-full" onclick="rescanModels()">rescan models</button>
+      <div class="s-note" id="s-model-info"></div>
+    </div>
+  </div>
+
+  <!-- PATHS & CUDA -->
+  <div class="box" style="flex:0 0 auto;border-left:none;border-right:none;">
+    <div class="box-title" style="color:var(--fg2)">┤ Paths &amp; CUDA ├</div>
+    <div class="box-body" style="gap:5px;">
+      <div class="s-row" style="grid-template-columns:60px 1fr 0;"><label class="s-lbl">server</label><input type="text" class="s-num" id="s-serverexe" style="width:100%"></div>
+      <div class="s-row" style="grid-template-columns:60px 1fr 0;"><label class="s-lbl">models</label><input type="text" class="s-num" id="s-modelsdir" style="width:100%"></div>
+      <div class="div"></div>
+      <div class="s-check"><label><input type="checkbox" id="s-cudagraph" onchange="savePaths()"><span class="chk"></span> CUDA graph opt</label></div>
+      <div class="s-check"><label><input type="checkbox" id="s-cudafp16" onchange="savePaths()"><span class="chk"></span> CUBLAS FP16</label></div>
+    </div>
+  </div>
+
+  <!-- APPLY & RESTART -->
+  <div class="box" style="flex:0 0 auto;border-left:none;border-right:none;">
+    <div class="box-body" style="gap:5px;">
+      <button class="s-btn-full" id="btn-apply" style="border-color:var(--or);color:var(--or)" onclick="applyAndRestart()">apply &amp; restart server</button>
+      <div class="s-note" id="apply-feedback"></div>
+    </div>
+  </div>
+
+  <!-- GENERATION PARAMS -->
+  <div class="box" style="flex:0 0 auto;border-left:none;border-right:none;border-top:none;">
+    <div class="box-title" style="color:var(--or)">┤ Generation ├</div>
+    <div class="box-body" style="gap:6px;">
+
+      <div class="s-row"><label class="s-lbl">temperature</label>
+        <div class="blk-gauge" id="s-temp" data-min="0" data-max="2" data-step="0.01" data-val="0.7" data-key="temperature" data-fmt="f2"></div>
+        <span class="s-val" id="sv-temp">0.70</span>
+      </div>
+      <div class="s-row"><label class="s-lbl">top_p</label>
+        <div class="blk-gauge" id="s-topp" data-min="0" data-max="1" data-step="0.01" data-val="0.9" data-key="top_p" data-fmt="f2"></div>
+        <span class="s-val" id="sv-topp">0.90</span>
+      </div>
+      <div class="s-row"><label class="s-lbl">top_k</label>
+        <div class="blk-gauge" id="s-topk" data-min="0" data-max="200" data-step="1" data-val="40" data-key="top_k" data-fmt="i"></div>
+        <span class="s-val" id="sv-topk">40</span>
+      </div>
+      <div class="s-row"><label class="s-lbl">min_p</label>
+        <div class="blk-gauge" id="s-minp" data-min="0" data-max="1" data-step="0.01" data-val="0.05" data-key="min_p" data-fmt="f2"></div>
+        <span class="s-val" id="sv-minp">0.05</span>
+      </div>
+      <div class="s-row"><label class="s-lbl">repeat_penalty</label>
+        <div class="blk-gauge" id="s-rep" data-min="1" data-max="2" data-step="0.01" data-val="1.1" data-key="repeat_penalty" data-fmt="f2"></div>
+        <span class="s-val" id="sv-rep">1.10</span>
+      </div>
+      <div class="s-row"><label class="s-lbl">repeat_last_n</label>
+        <div class="blk-gauge" id="s-repn" data-min="0" data-max="512" data-step="1" data-val="64" data-key="repeat_last_n" data-fmt="i"></div>
+        <span class="s-val" id="sv-repn">64</span>
+      </div>
+      <div class="s-row"><label class="s-lbl">frequency_pen.</label>
+        <div class="blk-gauge" id="s-freq" data-min="0" data-max="2" data-step="0.01" data-val="0" data-key="frequency_penalty" data-fmt="f2"></div>
+        <span class="s-val" id="sv-freq">0.00</span>
+      </div>
+      <div class="s-row"><label class="s-lbl">presence_pen.</label>
+        <div class="blk-gauge" id="s-pres" data-min="0" data-max="2" data-step="0.01" data-val="0" data-key="presence_penalty" data-fmt="f2"></div>
+        <span class="s-val" id="sv-pres">0.00</span>
+      </div>
+      <div class="div"></div>
+      <div class="s-row"><label class="s-lbl">n_predict</label>
+        <div class="blk-gauge" id="s-npred" data-min="-1" data-max="8192" data-step="1" data-val="-1" data-key="n_predict" data-fmt="inf"></div>
+        <span class="s-val" id="sv-npred">∞</span>
+      </div>
+      <div class="s-row"><label class="s-lbl">seed</label>
+        <input type="number" class="s-num" id="s-seed" value="-1" min="-1" step="1" style="width:70px;">
+        <button class="s-btn" onclick="document.getElementById('s-seed').value=Math.floor(Math.random()*2147483647);sSet('seed',document.getElementById('s-seed').value)">rnd</button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- SAMPLER ORDER -->
+  <div class="box" style="flex:0 0 auto;border-left:none;border-right:none;">
+    <div class="box-title" style="color:var(--fg2)">┤ Samplers ├</div>
+    <div class="box-body" style="gap:3px;">
+      <div class="s-note">drag to reorder</div>
+      <div id="sampler-list" style="display:flex;flex-direction:column;gap:2px;cursor:grab;"></div>
+    </div>
+  </div>
+
+  <!-- STOP SEQUENCES -->
+  <div class="box" style="flex:0 0 auto;border-left:none;border-right:none;">
+    <div class="box-title" style="color:var(--fg2)">┤ Stop Sequences ├</div>
+    <div class="box-body" style="gap:4px;">
+      <div id="stop-tags" style="display:flex;flex-wrap:wrap;gap:3px;min-height:16px;"></div>
+      <div style="display:flex;gap:4px;">
+        <input type="text" class="s-num" id="stop-input" placeholder="add sequence..." style="flex:1;width:0;">
+        <button class="s-btn" onclick="stopAdd()">+</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SYSTEM PROMPT -->
+  <div class="box" style="flex:0 0 auto;border-left:none;border-right:none;">
+    <div class="box-title" style="color:var(--vi)">┤ System Prompt ├</div>
+    <div class="box-body" style="gap:4px;">
+      <textarea id="s-sysprompt" rows="5" placeholder="System prompt..."
+        style="width:100%;resize:vertical;background:var(--bg2);color:var(--fg);border:1px solid var(--bdr);outline:none;font-family:var(--f);font-size:10px;padding:4px 6px;line-height:1.4;"
+        oninput="sSet('system_prompt',this.value)"></textarea>
+      <div style="display:flex;gap:4px;">
+        <button class="s-btn-full" onclick="sApply()">apply to chat</button>
+        <button class="s-btn-full s-btn-red" onclick="sClear()">clear chat</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SERVER PARAMS -->
+  <div class="box" style="flex:0 0 auto;border-left:none;border-right:none;">
+    <div class="box-title" style="color:var(--fg2)">┤ Server ├</div>
+    <div class="box-body" style="gap:5px;">
+      <div class="s-row"><label class="s-lbl">n_ctx</label>
+        <div class="blk-gauge" id="s-nctx" data-min="512" data-max="81920" data-step="512" data-val="81920" data-key="n_ctx" data-fmt="i"></div>
+        <span class="s-val" id="sv-nctx">81920</span>
+      </div>
+      <div class="s-row"><label class="s-lbl">n_batch</label>
+        <div class="blk-gauge" id="s-nbatch" data-min="1" data-max="2048" data-step="1" data-val="512" data-key="n_batch" data-fmt="i"></div>
+        <span class="s-val" id="sv-nbatch">512</span>
+      </div>
+      <div class="s-row"><label class="s-lbl">n_gpu_layers</label>
+        <div class="blk-gauge" id="s-ngl" data-min="0" data-max="99" data-step="1" data-val="99" data-key="n_gpu_layers" data-fmt="i"></div>
+        <span class="s-val" id="sv-ngl">99</span>
+      </div>
+      <div class="s-row"><label class="s-lbl">threads</label>
+        <div class="blk-gauge" id="s-thr" data-min="1" data-max="16" data-step="1" data-val="4" data-key="threads" data-fmt="i"></div>
+        <span class="s-val" id="sv-thr">4</span>
+      </div>
+      <div class="div"></div>
+      <div class="s-check"><label><input type="checkbox" id="s-fa" checked onchange="sSet('flash_attn',this.checked)"><span class="chk"></span> flash_attn</label></div>
+      <div class="s-check"><label><input type="checkbox" id="s-ncs" checked onchange="sSet('no_context_shift',this.checked)"><span class="chk"></span> no_context_shift</label></div>
+      <div class="s-check"><label><input type="checkbox" id="s-cont" onchange="sSet('cont_batching',this.checked)"><span class="chk"></span> cont_batching</label></div>
+      <div class="s-check"><label><input type="checkbox" id="s-mlock" onchange="sSet('mlock',this.checked)"><span class="chk"></span> mlock</label></div>
+      <div class="div"></div>
+      <div class="s-row" style="height:auto;align-items:flex-start;flex-direction:column;gap:3px;">
+        <label class="s-lbl">cache_type_k</label>
+        <select class="s-sel" id="s-ctk" onchange="sSet('cache_type_k',this.value)">
+          <option value="f16">f16</option><option value="q8_0" selected>q8_0</option>
+          <option value="q4_0">q4_0</option><option value="q4_1">q4_1</option>
+        </select>
+      </div>
+      <div class="s-row" style="height:auto;align-items:flex-start;flex-direction:column;gap:3px;">
+        <label class="s-lbl">cache_type_v</label>
+        <select class="s-sel" id="s-ctv" onchange="sSet('cache_type_v',this.value)">
+          <option value="f16">f16</option><option value="q8_0" selected>q8_0</option>
+          <option value="q4_0">q4_0</option><option value="q4_1">q4_1</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <!-- CHAT TEMPLATE -->
+  <div class="box" style="flex:0 0 auto;border-left:none;border-right:none;">
+    <div class="box-title" style="color:var(--fg2)">┤ Chat Template ├</div>
+    <div class="box-body" style="gap:4px;">
+      <select class="s-sel" id="s-tmpl" onchange="sSet('chat_template',this.value)" style="width:100%">
+        <option value="jinja">jinja (file)</option>
+        <option value="chatml">chatml</option>
+        <option value="llama3">llama3</option>
+        <option value="mistral">mistral</option>
+        <option value="deepseek3">deepseek3</option>
+        <option value="qwen2.5">qwen2.5</option>
+        <option value="gemma">gemma</option>
+      </select>
+      <div class="s-check"><label><input type="checkbox" id="s-think" onchange="sSet('reasoning',this.checked)"><span class="chk"></span> reasoning (deepseek)</label></div>
+    </div>
+  </div>
+
+  <!-- EXPORT / APPLY -->
+  <div class="box" style="flex:0 0 auto;border-left:none;border-right:none;border-bottom:none;">
+    <div class="box-title" style="color:var(--fg2)">┤ Export ├</div>
+    <div class="box-body" style="gap:5px;">
+      <button class="s-btn-full" onclick="exportCmd()">copy launch cmd</button>
+      <button class="s-btn-full" onclick="exportJSON()">copy as JSON</button>
+      <div class="s-note" id="export-feedback"></div>
+    </div>
+  </div>
+
+  </div><!-- /settings-inner -->
+</div><!-- /settings-col -->
+</div><!-- /main -->
+
+<!-- STATUSBAR -->
+<div id="statusbar">
+  <div class="sb-seg"><span class="sb-k">CPU</span><span class="sb-v" id="sb-cpu">--%</span></div>
+  <div class="sb-seg"><span class="sb-k">GPU</span><span class="sb-v" id="sb-gpu">--%</span></div>
+  <div class="sb-seg"><span class="sb-k">VRAM</span><span class="sb-v" id="sb-vram">--</span></div>
+  <div class="sb-seg"><span class="sb-k">RAM</span><span class="sb-v" id="sb-ram">--</span></div>
+  <div class="sb-seg"><span class="sb-k">t/s</span><span class="sb-v" id="sb-tps">--</span></div>
+  <div class="sb-seg"><span class="sb-v" id="sb-llm" style="color:var(--fg2)">● --</span></div>
+  <div class="sb-seg" style="cursor:pointer;" onclick="toggleHealthPopup(event)"><span class="sb-k">Alerts</span><span class="alert-badge zero" id="alert-badge">0</span></div>
+  <div class="sb-seg"><span class="sb-k">Up</span><span class="sb-v" id="sb-up">--</span></div>
+  <div style="flex:1;"></div>
+  <span class="sb-clock" id="sb-clk">--:--:--</span>
+</div>
+</div>
+
+</div><!-- /app -->
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+//  LlamaControl — Electron IPC-driven dashboard
+// ═══════════════════════════════════════════════════════════════
+
+let _CTX=81920,_VMAX=12,_RMAX=64;
+let MAX_TPS=60,MAX_PTS=600,MAX_NET=15;
+let coresBuilt = false;
+
+// ── APP SETTINGS (persisted in localStorage) ──
+const APP_SETTINGS_KEY = 'llama-control-app-settings';
+const AS = {
+  alertCpu: 90, alertGpu: 95, alertGpuTemp: 85, alertVram: 90, alertRam: 85,
+  pollInterval: 1500, maxLogLines: 14, autoStartServer: false,
+};
+try { Object.assign(AS, JSON.parse(localStorage.getItem(APP_SETTINGS_KEY) || '{}')); } catch {}
+function saveAS() { localStorage.setItem(APP_SETTINGS_KEY, JSON.stringify(AS)); }
+let _pollTimer = null, _logTimer = null;
+
+const t0=Date.now();
+let ttftH=[],prevReq=0,peakTps=0,reqHist=[];
+let alertCount=0,alertDebounce={},alertLog=[];
+const peaks={cpu:0,gpuUtil:0,gpuTemp:0,gpuPow:0,vram:0,ram:0,tps:0};
+let slotStartTime=null,lastTokenCount=0,lastTokenTime=Date.now();
+let thinkToksSession=0; // cumulative thinking tokens
+
+// ── HISTORY ARRAYS for sparklines ──
+const H={cpu:[],gpu:[],tps:[],kv:[],mem:[]};
+const HLEN=28;
+function pushH(key,val){H[key].push(val);if(H[key].length>HLEN)H[key].shift();}
+
+// ── COLOR RAMP: 0→60 green, 60→85 amber, 85→100 red ──
+function ramp(p){
+  p=Math.max(0,Math.min(100,p));
+  if(p<=60){const t=p/60;return`rgb(${Math.round(184+(250-184)*t)},${Math.round(187+(189-187)*t)},${Math.round(38+(47-38)*t)})`;}
+  if(p<=85){const t=(p-60)/25;return`rgb(${Math.round(250+(251-250)*t)},${Math.round(189+(73-189)*t)},${Math.round(47+(52-47)*t)})`;}
+  const t=Math.min(1,(p-85)/15);return`rgb(251,${Math.round(73*(1-t*.5))},${Math.round(52*(1-t*.4))})`;
+}
+
+// ── SPARKLINE: array → ASCII block chars ──
+function spark(arr,max){
+  if(!arr.length)return'';
+  const mx=max||Math.max(1,...arr);
+  return arr.map(v=>'▁▂▃▄▅▆▇█'[Math.min(7,Math.floor(v/mx*8))]).join('');
+}
+
+// ── Helpers ──
+function setG(id,pct,col){
+  const e=document.getElementById(id);if(!e)return;
+  e.style.width=Math.min(100,Math.max(0,pct))+'%';
+  e.style.background=col||ramp(pct);
+}
+function setT(id,val){const e=document.getElementById(id);if(e)e.textContent=val;}
+function setC(id,col){const e=document.getElementById(id);if(e)e.style.color=col;}
+function setSpark(id,arr,max){const e=document.getElementById(id);if(e){e.textContent=spark(arr,max);e.style.color=ramp(arr.length?arr[arr.length-1]/max*100:0);}}
+function fmtTok(n){if(!n||n<=0)return'--';if(n>=1e6)return(n/1e6).toFixed(1)+'M';if(n>=1e3)return(n/1e3).toFixed(1)+'K';return String(Math.round(n));}
+
+// ── ALERT SYSTEM ──
+function alert_(boxId,msg,level='warn',key){
+  const k=key||boxId+msg;
+  const now=Date.now();
+  if(alertDebounce[k]&&now-alertDebounce[k]<25000)return;
+  alertDebounce[k]=now;
+  const box=document.getElementById(boxId);
+  if(box){box.classList.remove('a-warn','a-crit');void box.offsetWidth;box.classList.add(level==='crit'?'a-crit':'a-warn');}
+  addLogEntry(level==='crit'?'ERR':'WARN',msg);
+  alertCount++;
+  alertLog.unshift({ts:new Date().toTimeString().slice(0,8),msg,level});
+  if(alertLog.length>30)alertLog.pop();
+  const badge=document.getElementById('alert-badge');
+  if(badge){badge.textContent=alertCount;badge.className='alert-badge'+(alertCount===0?' zero':'');}
+}
+
+function checkAlerts(sys,m,sl){
+  const avg=sys.cpu.cores.reduce((a,b)=>a+b.pct,0)/sys.cpu.cores.length;
+  if(avg>AS.alertCpu)alert_('box-cpu','CPU avg >'+AS.alertCpu+'% ('+avg.toFixed(0)+'%)','warn','cpu-high');
+  if(sys.gpu && sys.gpu.util!==undefined && sys.gpu.util>AS.alertGpu)alert_('box-gpu','GPU util >'+AS.alertGpu+'%','crit','gpu-crit');
+  if(sys.gpu && sys.gpu.temp!==undefined && sys.gpu.temp>AS.alertGpuTemp)alert_('box-gpu','GPU temp >'+AS.alertGpuTemp+'°C: '+sys.gpu.temp+'°C','crit','gpu-temp');
+  if(sys.gpu && sys.gpu.vramUsed!==undefined) {
+    const vp=sys.gpu.vramUsed/_VMAX*100;
+    if(vp>AS.alertVram)alert_('box-gpu','VRAM >'+AS.alertVram+'% ('+vp.toFixed(0)+'%)','warn','vram-high');
+  }
+  const mp=sys.mem.used/sys.mem.total*100;
+  if(mp>AS.alertRam)alert_('box-mem','RAM >'+AS.alertRam+'% ('+mp.toFixed(0)+'%)','warn','mem-high');
+  const kvp=m.kv_ratio*100;
+  if(kvp>90)alert_('box-kvc','KV cache >90% · context near limit','crit','kv-crit');
+  else if(kvp>80)alert_('box-kvc','KV cache >80% ('+kvp.toFixed(0)+'%)','warn','kv-warn');
+  // Stall detection
+  if(sl.state===1){
+    const now=Date.now();
+    if(sl.tokens_predicted!==lastTokenCount){lastTokenCount=sl.tokens_predicted;lastTokenTime=now;}
+    const stall=(now-lastTokenTime)/1000;
+    if(stall>180)alert_('box-slt','Slot 0 stalled: no new tokens for '+stall.toFixed(0)+'s','crit','stall');
+  }else{lastTokenTime=Date.now();lastTokenCount=0;}
+}
+
+// ── CORES ──
+function buildCores(n){
+  const c=document.getElementById('cores-wrap');c.innerHTML='';
+  for(let i=0;i<n;i++)c.innerHTML+='<div class="g-row"><span class="g-lbl">'+i+'</span><div class="g-track"><div class="g-fill" id="cr'+i+'" style="width:0%"></div></div><span class="g-val" id="cv'+i+'">0%</span></div>';
+}
+
+// ── DISKS ──
+function buildDisks(disks){
+  if (!disks || !disks.length) return;
+  const b = document.getElementById('disk-body'); b.innerHTML = '';
+  disks.forEach(d => {
+    const name = d.name.length > 10 ? d.name.slice(0,10) : d.name;
+    b.innerHTML += '<div class="g-row"><span class="g-lbl" style="font-size:9px;color:var(--am)">'+name+'</span><div class="g-track"><div class="g-fill" style="width:'+d.pct+'%;background:'+ramp(d.pct)+'"></div></div><span class="g-val" style="color:var(--fg2)">'+d.used+'/'+d.total+'G</span></div>';
+  });
+}
+
+// ── PROCS ──
+let _procs = [];
+function renderProcs(procs) {
+  if (!procs || !procs.length) return;
+  _procs = procs;
+  const tb = document.getElementById('proc-tb'); tb.innerHTML = '';
+  procs.forEach(p => {
+    const cpu = p.cpu ?? p.c ?? 0;
+    const name = p.name || p.n || '';
+    const user = p.user || p.u || '';
+    const mem = p.mem || p.m || '';
+    const tr = document.createElement('tr');
+    tr.innerHTML =
+      '<td style="color:var(--fg3)">'+p.pid+'</td>'+
+      '<td style="color:var(--am)">'+name+'</td>'+
+      '<td style="color:var(--fg2)">'+user+'</td>'+
+      '<td style="text-align:right;color:'+ramp(cpu*2)+'">'+cpu.toFixed(1)+'</td>'+
+      '<td style="text-align:right;color:var(--bl)">'+mem+'</td>';
+    tr.addEventListener('contextmenu', e => {
+      e.preventDefault();
+      e.stopPropagation();
+      showProcMenu(e.clientX, e.clientY, p.pid, name);
+    });
+    tb.appendChild(tr);
+  });
+  setT('proc-cnt', procs.length + '');
+}
+
+// ── PROCESS CONTEXT MENU ──
+function showProcMenu(x, y, pid, name) {
+  let menu = document.getElementById('proc-ctx-menu');
+  if (!menu) {
+    menu = document.createElement('div');
+    menu.id = 'proc-ctx-menu';
+    menu.style.cssText = 'position:fixed;z-index:9999;background:var(--bg1);border:1px solid var(--bdr);padding:2px 0;font-family:var(--f);font-size:10px;display:none;min-width:120px;';
+    document.body.appendChild(menu);
+    document.addEventListener('click', () => menu.style.display='none');
+    document.addEventListener('contextmenu', () => menu.style.display='none');
+  }
+  menu.innerHTML =
+    '<div style="padding:3px 10px;color:var(--fg3);font-size:9px;user-select:none;">PID '+pid+' · '+name+'</div>'+
+    '<div style="border-top:1px solid var(--bdr);margin:2px 0;"></div>'+
+    '<div id="proc-kill-btn" style="padding:3px 10px;color:var(--rd);cursor:pointer;user-select:none;">Kill process</div>';
+  menu.style.left = x+'px';
+  menu.style.top = y+'px';
+  menu.style.display = 'block';
+  document.getElementById('proc-kill-btn').onclick = async (e) => {
+    e.stopPropagation();
+    menu.style.display = 'none';
+    const r = await window.api.killProcess(pid);
+    addLogEntry(r.ok?'INFO':'ERR', (r.ok?'Killed':'Failed to kill')+' PID '+pid+' ('+name+')');
+  };
+}
+
+// ── IPC FETCHERS ──
+async function fetchSys() {
+  try { return await window.api.getSystemMetrics(); } catch { return null; }
+}
+async function fetchMetrics() {
+  try {
+    const raw = await window.api.getLlmMetrics();
+    if (!raw) return null;
+    // Transform Prometheus flat object to the shape update() expects
+    // llama-server uses either 'llamacpp:metric' or 'llamacpp_metric' depending on version
+    // Try multiple metric name variants (llama-server changed names across versions)
+    const g = (...names) => {
+      for (const name of names) {
+        const v = raw['llamacpp:'+name] ?? raw['llamacpp_'+name] ?? raw[name];
+        if (v !== undefined && v !== null) return parseFloat(v);
+      }
+      return 0;
+    };
+    // b8412 actual names: predicted_tokens_seconds, prompt_tokens_seconds
+    const tps = g('predicted_tokens_seconds', 'tokens_predicted_seconds', 'tokens_predicted_per_second');
+    const pts = g('prompt_tokens_seconds', 'prompt_tokens_per_second');
+    const run = tps > 0 || g('requests_processing') > 0;
+    const promptToks = g('prompt_tokens_total');
+    const genToks = g('tokens_predicted_total');
+    const promptSec = g('prompt_seconds_total');
+    const genSec = g('tokens_predicted_seconds_total');
+    const reqProc = g('requests_processing');
+    const reqDef = g('requests_deferred');
+    const nDecode = g('n_decode_total');
+    return {
+      kv_ratio: g('kv_cache_usage_ratio'),
+      kv_full: g('kv_cache_full_events'),
+      req_proc: reqProc,
+      req_def: reqDef,
+      req_fail: 0,
+      req_tot: nDecode > 0 ? Math.max(1, nDecode) : (reqProc + reqDef),
+      prompt_toks: promptToks,
+      gen_toks: genToks,
+      think_toks: 0,
+      prefill_s: promptSec > 0 ? promptSec : (pts > 0 ? promptToks / pts : 0),
+      eval_s: genSec > 0 ? genSec : (tps > 0 ? genToks / tps : 0),
+      n_decode: nDecode || genToks,
+      cache_hit: 0,
+      _tps: tps,
+      _pts: pts,
+      _run: run,
+    };
+  } catch { return null; }
+}
+async function fetchSlots() {
+  try { return await window.api.getLlmSlots(); } catch { return []; }
+}
+
+// ── MAIN UPDATE ──
+let _updating = false;
+async function update(){
+  if (_updating) return; // guard against overlapping async calls
+  _updating = true;
+  try { await _doUpdate(); } catch(e) { console.error('update error:', e); }
+  _updating = false;
+}
+async function _doUpdate(){
+  // Fetch all 3 data sources IN PARALLEL
+  const [sys, m, slots] = await Promise.all([fetchSys(), fetchMetrics(), fetchSlots()]);
+  // Find the active slot (is_processing) or the last-used slot (has params)
+  let rawSl = {};
+  if (slots && slots.length > 0) {
+    rawSl = slots.find(s => s.is_processing) || slots.find(s => s.params || s.id_task) || slots[0];
+  }
+  const nt = rawSl.next_token && rawSl.next_token[0] || {};
+  const sl = {
+    state: rawSl.is_processing ? 1 : (rawSl.state === 'processing' || rawSl.state === 1 ? 1 : 0),
+    n_past: rawSl.n_past || (nt.n_decoded || 0),
+    tokens_predicted: rawSl.tokens_predicted || nt.n_decoded || 0,
+    tokens_evaluated: rawSl.tokens_evaluated || 0,
+    think_tokens: rawSl.think_tokens || 0,
+    timing_prompt_ms: rawSl.timing_prompt_ms || rawSl.t_prompt_processing || 0,
+    timing_think_ms: rawSl.timing_think_ms || 0,
+    timing_predicted_ms: rawSl.timing_predicted_ms || rawSl.t_token_generation || 0,
+    generation_settings: rawSl.params || rawSl.generation_settings || {},
+    prompt: rawSl.prompt || '',
+    n_ctx: rawSl.n_ctx || _CTX,
+  };
+
+  // ── SYSTEM METRICS (independent of LLM) ──
+  if (sys) {
+    if (!coresBuilt && sys.cpu.cores.length > 0) {
+      buildCores(sys.cpu.cores.length);
+      coresBuilt = true;
+      const ct = document.getElementById('title-cpu');
+      if (ct && sys.cpu.brand) ct.textContent = '┤ CPU · ' + sys.cpu.brand + ' ├';
+    }
+    if (sys.disk) buildDisks(sys.disk);
+    if (sys.gpu && sys.gpu.vramTotal) {
+      _VMAX = sys.gpu.vramTotal;
+      const gt = document.getElementById('title-gpu');
+      if (gt && !gt._set) { gt.textContent = '┤ GPU · ' + (_VMAX).toFixed(0) + ' GB ├'; gt._set = true; }
+    }
+    if (sys.mem && sys.mem.total) {
+      _RMAX = sys.mem.total;
+      const rt = document.getElementById('title-ram');
+      if (rt && !rt._set) { rt.textContent = '┤ RAM · ' + sys.mem.total.toFixed(0) + ' GB ├'; rt._set = true; }
+    }
+    if (sys.procs) renderProcs(sys.procs);
+
+    // ── PEAK TRACKING ──
+    const avg=sys.cpu.cores.reduce((a,b)=>a+b.pct,0)/sys.cpu.cores.length;
+    peaks.cpu=Math.max(peaks.cpu,avg);
+    peaks.ram=Math.max(peaks.ram,sys.mem.used);
+    if(sys.gpu&&sys.gpu.util!==undefined){peaks.gpuUtil=Math.max(peaks.gpuUtil,sys.gpu.util);peaks.gpuTemp=Math.max(peaks.gpuTemp,sys.gpu.temp||0);peaks.gpuPow=Math.max(peaks.gpuPow,sys.gpu.power||0);peaks.vram=Math.max(peaks.vram,sys.gpu.vramUsed||0);}
+
+    // ── CPU ──
+  pushH('cpu',avg);
+  setT('cpu-tot',avg.toFixed(0)+'%');setC('cpu-tot',ramp(avg));
+  setT('cpu-freq',sys.cpu.freq ? sys.cpu.freq.toFixed(1)+' GHz' : '--');
+  sys.cpu.cores.forEach((c,i)=>{setG('cr'+i,c.pct);const v=document.getElementById('cv'+i);if(v){v.textContent=c.pct.toFixed(0)+'%';v.style.color=ramp(c.pct);}});
+  setSpark('sp-cpu',H.cpu,100);
+  setT('sb-cpu',avg.toFixed(0)+'%');setC('sb-cpu',ramp(avg));
+
+  // ── GPU ──
+  if (sys.gpu && sys.gpu.util !== undefined) {
+  pushH('gpu',sys.gpu.util);
+  const vp=sys.gpu.vramUsed/_VMAX*100;
+  setG('g-gpuu',sys.gpu.util);setT('v-gpuu',sys.gpu.util.toFixed(0)+'%');setC('v-gpuu',ramp(sys.gpu.util));
+  setSpark('sp-gpu',H.gpu,100);
+  setG('g-vram',vp);setT('v-vram',sys.gpu.vramUsed.toFixed(1)+'G');setC('v-vram',ramp(vp));
+  setT('v-gtem',sys.gpu.temp+'°C');setT('v-gpow',sys.gpu.power+' W');setT('v-gclk',sys.gpu.coreClock+' MHz');
+  setT('sb-gpu',sys.gpu.util.toFixed(0)+'%');setC('sb-gpu',ramp(sys.gpu.util));
+  setT('sb-vram',sys.gpu.vramUsed.toFixed(1)+'/'+_VMAX+'G');setC('sb-vram',ramp(vp));
+  }
+
+  // ── MEM ──
+  const mp=sys.mem.used/sys.mem.total*100;
+  pushH('mem',mp);
+  setG('g-muse',mp);setT('v-muse',sys.mem.used.toFixed(1)+'G');setC('v-muse',ramp(mp));
+  setT('sb-ram',sys.mem.used.toFixed(1)+'G');setC('sb-ram',ramp(mp));
+
+  // ── NET ──
+  MAX_NET=Math.max(MAX_NET,sys.net.dl*1.5,sys.net.ul*1.5,1);
+  setG('g-ndl',sys.net.dl/MAX_NET*100,'var(--gr)');setT('v-ndl',sys.net.dl.toFixed(2)+'M/s');
+  setG('g-nul',sys.net.ul/MAX_NET*100,'var(--or)');setT('v-nul',sys.net.ul.toFixed(2)+'M/s');
+    setT('v-nrx',sys.net.rxTotal);setT('v-ntx',sys.net.txTotal);
+  } // end if (sys)
+
+  // ── MINI HUD (must update even without LLM) ──
+  if (sys) updateMini(sys, m, sl);
+
+  // ── LLM HERO ──
+  if (!m) {
+    // server not running - set LLM status to stopped
+    const stEl=document.getElementById('lhs-st');
+    if(stEl){stEl.textContent='● STOPPED';stEl.style.color='var(--rd)';}
+    const sbLlm=document.getElementById('sb-llm');
+    if(sbLlm){sbLlm.textContent='● STOPPED';sbLlm.style.color='var(--rd)';}
+    const tbSt=document.getElementById('tb-status');
+    if(tbSt){tbSt.textContent='● stopped';tbSt.style.color='var(--rd)';}
+    return;
+  }
+  // Server is running (metrics endpoint responded)
+  {
+    const tbSt=document.getElementById('tb-status');
+    if(tbSt){tbSt.textContent='● running';tbSt.style.color='var(--gr)';}
+  }
+  const tps=m._tps,pts=m._pts;
+  if(tps>0){peakTps=Math.max(peakTps,tps);peaks.tps=peakTps;MAX_TPS=Math.max(60,Math.ceil(peakTps*1.3));}
+  pushH('tps',tps);
+  setT('h-tps',tps.toFixed(1));setT('h-pts',pts.toFixed(0));
+  setG('g-htps',tps/MAX_TPS*100,ramp(100-tps/MAX_TPS*80));
+  setG('g-hpts',pts/MAX_PTS*100,'var(--gr)');
+  setSpark('sp-tps',H.tps,MAX_TPS);
+  setT('sb-tps',tps.toFixed(1));setC('sb-tps',ramp(100-tps/MAX_TPS*80));
+
+  setT('h-slot',m.req_proc+'/1');setT('h-q',m.req_def);
+
+  const total=Math.floor(m.req_tot);
+  setT('h-req',total);
+  setT('h-suc',total>0?'100%':'--%');
+  const rpm=prevReq>0?(total-prevReq)*(60/1.5):0;prevReq=total;
+  setT('h-rpm',rpm.toFixed(1));
+
+  const stEl=document.getElementById('lhs-st');
+  if(stEl){stEl.textContent=m._run?'● GENERATING':'● ONLINE';stEl.style.color=m._run?'var(--or)':'var(--gr)';}
+  const sbLlm=document.getElementById('sb-llm');
+  if(sbLlm){sbLlm.textContent=m._run?'● GENERATING':'● ONLINE';sbLlm.style.color=m._run?'var(--or)':'var(--gr)';}
+
+  // ── CONTEXT (use Prometheus totals + client-side thinking split) ──
+  const totalUsed = m.prompt_toks + m.gen_toks;
+  const thkT = _sessionThinkToks;
+  const outT = _sessionContentToks || (m.gen_toks - thkT);
+  const promT = m.prompt_toks;
+  const freeT = Math.max(0, _CTX - totalUsed);
+  const ctxp = Math.min(100, totalUsed / _CTX * 100);
+  const fi = n => Math.max(.05, n / Math.max(1, totalUsed + freeT) * 100);
+  document.getElementById('ctx-sys').style.flex = fi(0);
+  document.getElementById('ctx-thk').style.flex = fi(thkT);
+  document.getElementById('ctx-prom').style.flex = fi(promT);
+  document.getElementById('ctx-out').style.flex = fi(Math.max(0, outT));
+  document.getElementById('ctx-free').style.flex = fi(freeT);
+  setG('g-ctx', ctxp); document.getElementById('g-ctx').style.background = ramp(ctxp);
+  setT('v-ctx', ctxp.toFixed(1) + '%'); setC('v-ctx', ramp(ctxp));
+  setT('v-ctxu', totalUsed.toLocaleString()); setT('v-ctxf', freeT.toLocaleString());
+  setT('v-think', thkT > 0 ? thkT.toLocaleString() : '--');
+  setT('v-ctxo', (outT > 0 ? outT : m.gen_toks).toLocaleString());
+
+  // ── TOKEN TOTALS (Prometheus + client thinking split) ──
+  const allT = promT + thkT + Math.max(0, outT);
+
+  setG('g-tprom', allT > 0 ? promT / allT * 100 : 0, 'var(--cy)'); setT('v-tprom', fmtTok(promT));
+  setG('g-tthk', allT > 0 ? thkT / allT * 100 : 0, 'var(--am)'); setT('v-tthk', fmtTok(thkT));
+  setG('g-tout', allT > 0 ? Math.max(0, outT) / allT * 100 : 0, 'var(--gr)'); setT('v-tout', fmtTok(Math.max(0, outT)));
+  setT('v-peak', peakTps > 0 ? peakTps.toFixed(1) + ' t/s' : '--');
+
+  // ── SLOT MONITOR ──
+  const isRun=sl.state===1;
+  setT('slt-st',isRun?'running':'idle');setC('slt-st',isRun?'var(--gr)':'var(--fg2)');
+  const sb=document.getElementById('slt-body');
+  const p=sl.generation_settings||{};
+  const lastTtft=_lastChatTimings?_lastChatTimings.prompt_ms:0;
+  const lastTps=_lastChatTimings?_lastChatTimings.predicted_per_second:0;
+  sb.innerHTML=
+    '<div class="kv"><span class="k">State</span><span class="v" style="color:'+(isRun?'var(--gr)':'var(--fg2)')+'">'+(isRun?'▶ RUNNING':'◼ IDLE')+'</span></div>'+
+    '<div style="display:flex;gap:10px;font-size:10px;flex-wrap:wrap;">'+
+      '<span><span style="color:var(--fg2)">out</span> <span style="color:var(--gr)">'+fmtTok(m.gen_toks)+'</span></span>'+
+      '<span><span style="color:var(--fg2)">prompt</span> <span style="color:var(--cy)">'+fmtTok(m.prompt_toks)+'</span></span>'+
+      '<span><span style="color:var(--fg2)">ttft</span> <span style="color:var(--am)">'+(lastTtft>0?lastTtft.toFixed(0)+'ms':'\u2014')+'</span></span>'+
+      '<span><span style="color:var(--fg2)">t/s</span> <span style="color:var(--or)">'+(lastTps>0?lastTps.toFixed(1):'\u2014')+'</span></span>'+
+    '</div>'+
+    '<div style="display:flex;gap:10px;font-size:10px;flex-wrap:wrap;margin-top:2px;">'+
+      '<span><span style="color:var(--fg3)">temp</span> <span style="color:var(--fg2)">'+(p.temperature??S.temperature)+'</span></span>'+
+      '<span><span style="color:var(--fg3)">top_k</span> <span style="color:var(--fg2)">'+(p.top_k??S.top_k)+'</span></span>'+
+      '<span><span style="color:var(--fg3)">top_p</span> <span style="color:var(--fg2)">'+(p.top_p??S.top_p)+'</span></span>'+
+      '<span><span style="color:var(--fg3)">rep_p</span> <span style="color:var(--fg2)">'+(p.repeat_penalty??S.repeat_penalty)+'</span></span>'+
+    '</div>';
+
+  // ── TTFT from chat timings + Prometheus ──
+  const promMs = _lastChatTimings ? _lastChatTimings.prompt_ms : 0;
+  // Also compute from Prometheus if available: prompt_seconds_total / prompt_tokens_total * 1000
+  const promFromProm = m.prompt_toks > 0 && m.prefill_s > 0 ? (m.prefill_s / m.prompt_toks * 1000) : 0;
+  const bestTtft = promMs > 0 ? promMs : promFromProm;
+  if (bestTtft > 0 && (ttftH.length === 0 || ttftH[ttftH.length-1] !== bestTtft)) {
+    if (promMs > 0) ttftH.push(promMs);
+  }
+  setT('h-ttft', bestTtft > 0 ? bestTtft.toFixed(0) + ' ms' : '--');
+  const tavg = ttftH.length > 0 ? ttftH.reduce((a,b)=>a+b,0)/ttftH.length : 0;
+  setT('h-ttft-avg', tavg > 0 ? tavg.toFixed(0) + ' ms' : '--');
+
+  // ── ALERTS ──
+  if (sys && m) checkAlerts(sys,m,sl);
+}
+
+// ── LOG ──
+function addLogEntry(lvl,msg){
+  const c=document.getElementById('log-lines');
+  const now=new Date().toTimeString().slice(0,8);
+  const d=document.createElement('div');d.className='log-line';
+  d.innerHTML='<span class="log-ts">'+now+'</span><span class="log-lvl lvl-'+lvl+'">['+lvl+']</span><span class="log-msg new">'+msg+'</span>';
+  c.appendChild(d);
+  setTimeout(()=>{const m=d.querySelector('.log-msg');if(m)m.classList.remove('new');},900);
+  while(c.children.length>AS.maxLogLines)c.removeChild(c.firstChild);
+}
+
+let _lastLogContent = '';
+async function fetchAndDisplayLogs() {
+  try {
+    const logs = await window.api.getLogs(40);
+    if (logs === _lastLogContent || logs === '(no logs)') return;
+    _lastLogContent = logs;
+    const c = document.getElementById('log-lines');
+    c.innerHTML = '';
+    logs.split('\n').forEach(line => {
+      if (!line.trim()) return;
+      let lvl = 'INFO';
+      if (/\b(error|err|fail)\b/i.test(line)) lvl = 'ERR';
+      else if (/\b(warn|warning)\b/i.test(line)) lvl = 'WARN';
+      else if (/\b(debug|dbg)\b/i.test(line)) lvl = 'DBG';
+      const d = document.createElement('div'); d.className = 'log-line';
+      const ts = line.match(/^(\d{4}[-/]\d{2}[-/]\d{2}\s+\d{2}:\d{2}:\d{2})/);
+      const tsStr = ts ? ts[1] : '';
+      const msg = tsStr ? line.slice(tsStr.length).trim() : line;
+      d.innerHTML = '<span class="log-ts">'+(tsStr || new Date().toTimeString().slice(0,8))+'</span><span class="log-lvl lvl-'+lvl+'">['+lvl+']</span><span class="log-msg">'+msg+'</span>';
+      c.appendChild(d);
+    });
+  } catch {}
+}
+
+// ── CPU COMPACT TOGGLE ──
+let _cpuCompact = false;
+function toggleCpuCompact() {
+  _cpuCompact = !_cpuCompact;
+  const det = document.getElementById('cpu-details');
+  const btn = document.getElementById('cpu-toggle-btn');
+  if (det) det.style.display = _cpuCompact ? 'none' : '';
+  if (btn) btn.textContent = _cpuCompact ? '▶' : '▼';
+}
+
+// ── HEALTH POPUP ──
+function toggleHealthPopup(e) {
+  let pop = document.getElementById('health-popup');
+  if (pop) { pop.remove(); return; }
+  // Position above the clicked segment
+  const seg = e ? e.currentTarget || e.target.closest('.sb-seg') : null;
+  const rect = seg ? seg.getBoundingClientRect() : {left:200,top:0};
+  pop = document.createElement('div');
+  pop.id = 'health-popup';
+  pop.style.cssText = 'position:fixed;z-index:9999;background:var(--bg1);border:1px solid var(--bdr);font-family:var(--f);font-size:10px;width:260px;max-height:340px;display:flex;flex-direction:column;';
+  pop.style.left = rect.left + 'px';
+  pop.style.bottom = (window.innerHeight - rect.top + 2) + 'px';
+
+  const peakRows = [
+    ['CPU max', peaks.cpu.toFixed(0)+'%', ramp(peaks.cpu)],
+    ['GPU max', peaks.gpuUtil.toFixed(0)+'%', ramp(peaks.gpuUtil)],
+    ['GPU temp max', peaks.gpuTemp+'\u00B0C', peaks.gpuTemp>80?'var(--rd)':peaks.gpuTemp>65?'var(--am)':'var(--gr)'],
+    ['GPU power max', peaks.gpuPow+'W', 'var(--or)'],
+    ['VRAM max', peaks.vram.toFixed(1)+'G', ramp(peaks.vram/_VMAX*100)],
+    ['RAM max', peaks.ram.toFixed(1)+'G', ramp(peaks.ram/_RMAX*100)],
+    ['Gen t/s peak', peaks.tps>0?peaks.tps.toFixed(1):'--', 'var(--or)'],
+  ];
+
+  let html = '<div style="padding:4px 8px;background:var(--bg);border-bottom:1px solid var(--bdr);display:flex;justify-content:space-between;align-items:center;"><span style="color:var(--fg2);letter-spacing:2px;font-size:9px;">SYSTEM HEALTH</span><button onclick="document.getElementById(\'health-popup\').remove()" style="background:none;border:none;color:var(--fg3);cursor:pointer;font-family:var(--f);font-size:10px;">x</button></div>';
+  html += '<div style="padding:6px 8px;display:flex;flex-direction:column;gap:2px;">';
+  html += '<div style="font-size:9px;color:var(--fg3);letter-spacing:1px;">PEAKS (SESSION)</div>';
+  peakRows.forEach(([k,v,c]) => {
+    html += '<div style="display:flex;justify-content:space-between;"><span style="color:var(--fg2)">'+k+'</span><span style="color:'+c+';font-weight:700">'+v+'</span></div>';
+  });
+  html += '</div>';
+
+  if (alertLog.length > 0) {
+    html += '<div style="border-top:1px solid var(--bdr);padding:6px 8px;flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:1px;">';
+    html += '<div style="font-size:9px;color:var(--fg3);letter-spacing:1px;">RECENT ALERTS</div>';
+    alertLog.slice(0,15).forEach(a => {
+      const col = a.level==='crit'?'var(--rd)':'var(--am)';
+      html += '<div style="display:flex;gap:6px;font-size:9px;"><span style="color:var(--fg3)">'+a.ts+'</span><span style="color:'+col+'">'+a.msg+'</span></div>';
+    });
+    html += '</div>';
+  } else {
+    html += '<div style="border-top:1px solid var(--bdr);padding:6px 8px;font-size:9px;color:var(--fg3);">No alerts</div>';
+  }
+
+  html += '<div style="border-top:1px solid var(--bdr);padding:4px 8px;"><button onclick="alertCount=0;alertLog.length=0;document.getElementById(\'alert-badge\').textContent=\'0\';document.getElementById(\'alert-badge\').className=\'alert-badge zero\';document.getElementById(\'health-popup\').remove();" style="width:100%;background:transparent;border:1px solid var(--bdr);color:var(--fg2);font-family:var(--f);font-size:9px;cursor:pointer;padding:2px 0;">clear alerts</button></div>';
+
+  pop.innerHTML = html;
+  document.body.appendChild(pop);
+  // Close on outside click
+  setTimeout(() => document.addEventListener('click', function _h(e){ if(!pop.contains(e.target)&&!e.target.closest('.sb-seg')){pop.remove();document.removeEventListener('click',_h);} }), 10);
+}
+
+// ── APP SETTINGS POPUP ──
+function toggleAppSettings(e) {
+  let pop = document.getElementById('app-settings-popup');
+  if (pop) { pop.remove(); return; }
+  const btn = e ? e.currentTarget || e.target : null;
+  const rect = btn ? btn.getBoundingClientRect() : {left:200,bottom:22};
+  pop = document.createElement('div');
+  pop.id = 'app-settings-popup';
+  pop.style.cssText = 'position:fixed;z-index:9999;background:var(--bg1);border:1px solid var(--bdr);font-family:var(--f);font-size:10px;width:240px;display:flex;flex-direction:column;';
+  pop.style.left = Math.min(rect.left, window.innerWidth - 250) + 'px';
+  pop.style.top = (rect.bottom + 4) + 'px';
+
+  const row = (label, id, val, min, max, unit) =>
+    '<div style="display:flex;justify-content:space-between;align-items:center;gap:4px;">'+
+    '<span style="color:var(--fg2)">'+label+'</span>'+
+    '<span style="display:flex;align-items:center;gap:3px;">'+
+    '<input type="number" id="'+id+'" value="'+val+'" min="'+min+'" max="'+max+'" style="width:48px;background:var(--bg2);color:var(--wh);border:1px solid var(--bdr);font-family:var(--f);font-size:10px;padding:1px 3px;text-align:right;">'+
+    '<span style="color:var(--fg3);font-size:9px;width:16px;">'+unit+'</span></span></div>';
+
+  pop.innerHTML =
+    '<div style="padding:4px 8px;background:var(--bg);border-bottom:1px solid var(--bdr);display:flex;justify-content:space-between;align-items:center;">'+
+    '<span style="color:var(--fg2);letter-spacing:2px;font-size:9px;">APP SETTINGS</span>'+
+    '<button onclick="document.getElementById(\'app-settings-popup\').remove()" style="background:none;border:none;color:var(--fg3);cursor:pointer;font-family:var(--f);font-size:10px;">x</button></div>'+
+
+    '<div style="padding:6px 8px;display:flex;flex-direction:column;gap:4px;">'+
+    '<div style="font-size:9px;color:var(--fg3);letter-spacing:1px;">ALERT THRESHOLDS</div>'+
+    row('CPU warn', 'as-cpu', AS.alertCpu, 50, 100, '%')+
+    row('GPU warn', 'as-gpu', AS.alertGpu, 50, 100, '%')+
+    row('GPU temp', 'as-gtemp', AS.alertGpuTemp, 60, 100, '\u00B0C')+
+    row('VRAM warn', 'as-vram', AS.alertVram, 50, 100, '%')+
+    row('RAM warn', 'as-ram', AS.alertRam, 50, 100, '%')+
+    '</div>'+
+
+    '<div style="border-top:1px solid var(--bdr);padding:6px 8px;display:flex;flex-direction:column;gap:4px;">'+
+    '<div style="font-size:9px;color:var(--fg3);letter-spacing:1px;">POLLING</div>'+
+    '<div style="display:flex;justify-content:space-between;align-items:center;">'+
+    '<span style="color:var(--fg2)">Update interval</span>'+
+    '<select id="as-poll" style="background:var(--bg2);color:var(--wh);border:1px solid var(--bdr);font-family:var(--f);font-size:10px;padding:1px 3px;">'+
+    '<option value="1000"'+(AS.pollInterval===1000?' selected':'')+'>1s</option>'+
+    '<option value="1500"'+(AS.pollInterval===1500?' selected':'')+'>1.5s</option>'+
+    '<option value="2000"'+(AS.pollInterval===2000?' selected':'')+'>2s</option>'+
+    '<option value="3000"'+(AS.pollInterval===3000?' selected':'')+'>3s</option>'+
+    '<option value="5000"'+(AS.pollInterval===5000?' selected':'')+'>5s</option>'+
+    '</select></div>'+
+    row('Max log lines', 'as-log', AS.maxLogLines, 5, 50, '')+
+    '</div>'+
+
+    '<div style="border-top:1px solid var(--bdr);padding:6px 8px;">'+
+    '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;color:var(--fg2);">'+
+    '<input type="checkbox" id="as-autostart"'+(AS.autoStartServer?' checked':'')+' style="accent-color:var(--or);">'+
+    'Auto-start server on launch</label>'+
+    '</div>'+
+
+    '<div style="border-top:1px solid var(--bdr);padding:4px 8px;">'+
+    '<button id="as-save-btn" style="width:100%;background:transparent;border:1px solid var(--or);color:var(--or);font-family:var(--f);font-size:10px;cursor:pointer;padding:3px 0;transition:all .1s;">apply</button></div>';
+
+  document.body.appendChild(pop);
+
+  document.getElementById('as-save-btn').onclick = () => {
+    AS.alertCpu = parseInt(document.getElementById('as-cpu').value) || 90;
+    AS.alertGpu = parseInt(document.getElementById('as-gpu').value) || 95;
+    AS.alertGpuTemp = parseInt(document.getElementById('as-gtemp').value) || 85;
+    AS.alertVram = parseInt(document.getElementById('as-vram').value) || 90;
+    AS.alertRam = parseInt(document.getElementById('as-ram').value) || 85;
+    AS.maxLogLines = parseInt(document.getElementById('as-log').value) || 14;
+    AS.autoStartServer = document.getElementById('as-autostart').checked;
+    const newPoll = parseInt(document.getElementById('as-poll').value) || 1500;
+    if (newPoll !== AS.pollInterval) {
+      AS.pollInterval = newPoll;
+      if (_pollTimer) clearInterval(_pollTimer);
+      if (_logTimer) clearInterval(_logTimer);
+      _pollTimer = setInterval(update, AS.pollInterval);
+      _logTimer = setInterval(fetchAndDisplayLogs, Math.max(AS.pollInterval * 2, 3000));
+    }
+    saveAS();
+    pop.remove();
+    addLogEntry('INFO', 'App settings updated');
+  };
+
+  setTimeout(() => document.addEventListener('click', function _h(e){ if(!pop.contains(e.target)&&!e.target.closest('.win-btn')){pop.remove();document.removeEventListener('click',_h);} }), 10);
+}
+
+function _renderHistory() {
+  const tb = document.getElementById('hist-tb');
+  if (!tb) return;
+  tb.innerHTML = '';
+  reqHist.forEach(r => {
+    tb.innerHTML += '<tr><td style="color:var(--fg3)">'+r.now+'</td><td style="color:var(--fg2)">'+r.prompt+'</td><td style="text-align:right;color:var(--am)">'+r.thk+'</td><td style="text-align:right;color:var(--gr)">'+r.out+'</td><td style="text-align:right;color:var(--or)">'+r.tpsVal+'</td><td style="text-align:right;color:var(--cy)">'+r.ttftVal+'</td><td style="text-align:right;color:var(--fg2)">'+r.totVal+'</td></tr>';
+  });
+}
+
+// ── CLOCK ──
+function clock(){
+  const now=new Date();
+  setT('sb-clk',now.toTimeString().slice(0,8));
+  const up=Math.floor((Date.now()-t0)/1000);
+  const d=Math.floor(up/86400),h=Math.floor((up%86400)/3600),mn=Math.floor((up%3600)/60),s=up%60;
+  setT('sb-up', d>0 ? d+'d '+String(h).padStart(2,'0')+':'+String(mn).padStart(2,'0') : h>0 ? h+'h'+String(mn).padStart(2,'0') : mn+'m'+String(s).padStart(2,'0')+'s');
+}
+
+// ── RESIZE ENGINE with localStorage ──
+const LS_KEY='nerv-tui-v3-sizes';
+
+function saveSizes(){
+  try{
+    const o={};
+    ['box-cpu','box-gpu','box-mem','box-net','box-dsk','box-prc',
+     'box-hero','box-kvc','box-flg','box-slt','box-hist','box-log','box-chat'].forEach(id=>{
+      const e=document.getElementById(id);
+      if(e&&e.style.height)o[id]=e.style.height;
+    });
+    const sb=document.getElementById('sidebar');
+    if(sb&&sb.style.width)o['__sb']=sb.style.width;
+    localStorage.setItem(LS_KEY,JSON.stringify(o));
+  }catch(e){}
+}
+
+function restoreSizes(){
+  try{
+    const o=JSON.parse(localStorage.getItem(LS_KEY)||'{}');
+    Object.entries(o).forEach(([id,h])=>{
+      if(id==='__sb'){
+        const e=document.getElementById('sidebar');
+        if(e){e.style.width=h;e.style.flex='none';}
+      }else{
+        const e=document.getElementById(id);
+        if(e&&h){
+          // Enforce minimum height for box-chat to keep input bar visible
+          if(id==='box-chat'){const px=parseInt(h,10);if(!isNaN(px)&&px<120)h='120px';}
+          e.style.height=h;e.style.flex='none';
+        }
+      }
+    });
+  }catch(e){}
+}
+
+// Vertical drag
+(()=>{
+  const handle=document.getElementById('drag-main');
+  const sidebar=document.getElementById('sidebar');
+  let drag=false,sx=0,sw=0;
+  handle.addEventListener('mousedown',e=>{drag=true;sx=e.clientX;sw=sidebar.offsetWidth;handle.classList.add('on');document.body.style.cursor='col-resize';e.preventDefault();});
+  document.addEventListener('mousemove',e=>{if(!drag)return;const nw=Math.max(180,Math.min(600,sw+(e.clientX-sx)));sidebar.style.width=nw+'px';sidebar.style.flex='none';});
+  document.addEventListener('mouseup',()=>{if(!drag)return;drag=false;handle.classList.remove('on');document.body.style.cursor='';saveSizes();});
+})();
+
+// Horizontal drags
+document.querySelectorAll('.drag-h').forEach(handle=>{
+  const aId=handle.dataset.a,bId=handle.dataset.b;
+  let drag=false,sy=0,sah=0,sbh=0;
+  handle.addEventListener('mousedown',e=>{
+    const a=document.getElementById(aId),b=document.getElementById(bId);
+    if(!a||!b)return;
+    drag=true;sy=e.clientY;sah=a.offsetHeight;sbh=b.offsetHeight;
+    handle.classList.add('on');document.body.style.cursor='row-resize';e.preventDefault();
+  });
+  document.addEventListener('mousemove',e=>{
+    if(!drag)return;
+    const a=document.getElementById(aId),b=document.getElementById(bId);
+    if(!a||!b)return;
+    const dy=e.clientY-sy;
+    const minA=aId==='box-chat'?120:38, minB=bId==='box-chat'?120:38;
+    const na=Math.max(minA,sah+dy),nb=Math.max(minB,sbh-dy);
+    a.style.flex='none';a.style.height=na+'px';
+    b.style.flex='none';b.style.height=nb+'px';
+  });
+  document.addEventListener('mouseup',()=>{if(!drag)return;drag=false;handle.classList.remove('on');document.body.style.cursor='';saveSizes();});
+});
+
+// ── INIT ──
+async function init() {
+  restoreSizes();
+  // Ensure box-chat is tall enough for the input bar after restore
+  const _bc=document.getElementById('box-chat');
+  if(_bc&&_bc.offsetHeight<120){_bc.style.height='';_bc.style.flex='';saveSizes();}
+
+  // Start companion for system metrics
+  try { await window.api.startCompanion(); } catch {}
+
+  // Load config and initialize
+  await initPorts();
+  await initSettings();
+  await loadProfiles();
+  await rescanModels();
+  await loadPaths();
+  updateFlags();
+
+  // Check server status
+  try {
+    const status = await window.api.getStatus();
+    _isRunning = status.running;
+    const statusEl = document.getElementById('tb-status');
+    const lhsEl = document.getElementById('lhs-st');
+    const sbLlm = document.getElementById('sb-llm');
+    if (status.running) {
+      if (statusEl) { statusEl.textContent = '● running'; statusEl.style.color = 'var(--gr)'; }
+      if (lhsEl) { lhsEl.textContent = '● RUNNING'; lhsEl.style.color = 'var(--gr)'; }
+      if (sbLlm) { sbLlm.textContent = '● RUNNING'; sbLlm.style.color = 'var(--gr)'; }
+    } else {
+      if (statusEl) { statusEl.textContent = '● stopped'; statusEl.style.color = 'var(--rd)'; }
+      if (lhsEl) { lhsEl.textContent = '● STOPPED'; lhsEl.style.color = 'var(--rd)'; }
+      if (sbLlm) { sbLlm.textContent = '● STOPPED'; sbLlm.style.color = 'var(--rd)'; }
+    }
+  } catch {}
+
+  // Auto-start server if enabled
+  if (AS.autoStartServer) {
+    try {
+      const st = await window.api.getStatus();
+      if (!st.running) { llmAction('start'); }
+    } catch {}
+  }
+
+  // Start update loops
+  clock();
+  update();
+  setInterval(clock, 1000);
+  _pollTimer = setInterval(update, AS.pollInterval);
+  _logTimer = setInterval(fetchAndDisplayLogs, Math.max(AS.pollInterval * 2, 3000));
+
+  // Settings panel closed by default
+  toggleSettings();
+}
+window.addEventListener('beforeunload', saveSizes);
+init();
+
+// ── CHAT ──
+let LLM_CHAT_URL = 'http://localhost:8080/v1/chat/completions';
+const chatHistory = [];
+let chatBusy = false;
+let _chatAbort = null;
+let _lastChatTimings = null; // captured from SSE stream for TTFT/History
+let _sessionThinkToks = 0, _sessionContentToks = 0; // client-side thinking token tracking
+let _thinkHidden = false;
+function toggleThinkVisibility() {
+  _thinkHidden = !_thinkHidden;
+  const btn = document.getElementById('btn-think-toggle');
+  if (btn) { btn.textContent = _thinkHidden ? 'think:off' : 'think:on'; btn.style.color = _thinkHidden ? 'var(--fg3)' : 'var(--am)'; }
+  document.querySelectorAll('#chat-msgs .chat-msg.thinking').forEach(el => {
+    el.style.display = _thinkHidden ? 'none' : '';
+  });
+}
+
+function chatAddMsg(role, text, streaming) {
+  const msgs = document.getElementById('chat-msgs');
+  const div = document.createElement('div');
+  div.className = 'chat-msg ' + (role === 'user' ? 'user' : role === 'thinking' ? 'thinking' : 'assistant');
+
+  const roleEl = document.createElement('div');
+  roleEl.className = 'chat-msg-role ' + (role === 'user' ? 'role-user' : role === 'thinking' ? 'role-thinking' : 'role-assistant');
+  roleEl.textContent = role === 'user' ? '▸ you' : role === 'thinking' ? '  ◦ thinking' : '▸ assistant';
+
+  const textEl = document.createElement('div');
+  textEl.className = 'chat-msg-text';
+  textEl.textContent = text;
+
+  if (streaming) {
+    const cursor = document.createElement('span');
+    cursor.className = 'chat-cursor';
+    cursor.id = 'chat-cursor';
+    textEl.appendChild(cursor);
+  }
+
+  div.appendChild(roleEl);
+  div.appendChild(textEl);
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+  return textEl;
+}
+
+async function chatSend() {
+  if (chatBusy) return;
+  const input = document.getElementById('chat-input');
+  const sendBtn = document.getElementById('chat-send');
+  const text = input.value.trim();
+  if (!text) return;
+
+  chatBusy = true;
+  input.value = '';
+  input.style.color = 'var(--fg2)';
+  sendBtn.style.color = 'var(--rd)';
+  sendBtn.textContent = 'stop';
+
+  chatHistory.push({ role: 'user', content: text });
+  chatAddMsg('user', text);
+
+  // ── placeholders: thinking ABOVE assistant ──
+  let thinkEl = null;
+  let thinkWrapper = null; // wrapper div for hide/show
+  let assistantEl = null;
+
+  let fullText = '';
+  try {
+    _chatAbort = new AbortController();
+    const resp = await fetch(LLM_CHAT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal: _chatAbort.signal,
+      body: JSON.stringify({
+        model: 'local',
+        stream: true,
+        messages: chatHistory,
+        temperature: S.temperature,
+        top_p: S.top_p,
+        top_k: S.top_k,
+        min_p: S.min_p,
+        repeat_penalty: S.repeat_penalty,
+        repeat_last_n: S.repeat_last_n,
+        frequency_penalty: S.frequency_penalty,
+        presence_penalty: S.presence_penalty,
+        n_predict: S.n_predict > 0 ? S.n_predict : undefined,
+        seed: S.seed >= 0 ? S.seed : undefined,
+        stop: S.stop.length > 0 ? S.stop : undefined,
+        samplers: S.samplers,
+      }),
+    });
+
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+
+    const reader = resp.body.getReader();
+    const dec = new TextDecoder();
+    let thinkBuf = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const chunk = dec.decode(value);
+      const lines = chunk.split('\n');
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const raw = line.slice(6).trim();
+        if (raw === '[DONE]') break;
+        try {
+          const j = JSON.parse(raw);
+          const d = j.choices?.[0]?.delta || {};
+          const content = d.content || '';
+          const reasoning = d.reasoning_content || '';
+
+          // reasoning_content = thinking tokens (deepseek format) — appears ABOVE response
+          if (reasoning) {
+            if (!thinkEl) {
+              thinkWrapper = chatAddMsg('thinking', '', false);
+              thinkEl = thinkWrapper;
+            }
+            thinkBuf += reasoning;
+            thinkEl.textContent = thinkBuf;
+            if (_thinkHidden && thinkWrapper) thinkWrapper.parentElement.style.display = 'none';
+          }
+
+          // content = actual response tokens — created AFTER thinking
+          if (content) {
+            if (!assistantEl) assistantEl = chatAddMsg('assistant', '', true);
+            fullText += content;
+            const cur = document.getElementById('chat-cursor');
+            if (assistantEl) {
+              assistantEl.textContent = fullText;
+              if (cur) assistantEl.appendChild(cur);
+            }
+          }
+
+          // Capture timings from the final event (has finish_reason)
+          if (j.timings) _lastChatTimings = j.timings;
+
+          if (content || reasoning) {
+            document.getElementById('chat-msgs').scrollTop = document.getElementById('chat-msgs').scrollHeight;
+          }
+        } catch (_) {}
+      }
+    }
+
+    // If no content was received (pure thinking response), show thinking as response
+    if (!assistantEl && thinkBuf) {
+      assistantEl = chatAddMsg('assistant', thinkBuf, false);
+      fullText = thinkBuf;
+    }
+    // remove cursor
+    const cur = document.getElementById('chat-cursor');
+    if (cur) cur.remove();
+    chatHistory.push({ role: 'assistant', content: fullText || thinkBuf });
+
+    // Estimate thinking vs content token split from char lengths
+    const thinkLen = thinkBuf.length, contentLen = fullText.length, totalLen = thinkLen + contentLen;
+    if (_lastChatTimings && _lastChatTimings.predicted_n > 0 && totalLen > 0) {
+      const t = _lastChatTimings;
+      const ratio = thinkLen / totalLen;
+      const thkToks = Math.round(t.predicted_n * ratio);
+      const outToks = t.predicted_n - thkToks;
+      _sessionThinkToks += thkToks;
+      _sessionContentToks += outToks;
+      // Enrich timings with thinking data
+      _lastChatTimings._thinkToks = thkToks;
+      _lastChatTimings._contentToks = outToks;
+
+      const now = new Date().toTimeString().slice(0,8);
+      const promptPreview = text.slice(0, 40);
+      const tpsVal = t.predicted_per_second ? t.predicted_per_second.toFixed(1) : '--';
+      const ttftVal = t.prompt_ms ? t.prompt_ms.toFixed(0) + 'ms' : '--';
+      const totMs = (t.prompt_ms||0) + (t.predicted_ms||0);
+      const totVal = totMs > 0 ? (totMs/1000).toFixed(1) + 's' : '--';
+      reqHist.unshift({now, prompt:promptPreview, thk:thkToks, out:outToks, tpsVal, ttftVal, totVal});
+      if (reqHist.length > 20) reqHist.pop();
+      _renderHistory();
+      if (t.prompt_ms > 0) ttftH.push(t.prompt_ms);
+    }
+
+  } catch (err) {
+    const cur = document.getElementById('chat-cursor');
+    if (cur) cur.remove();
+    if (err.name === 'AbortError') {
+      // User stopped the stream - keep what we have
+      chatHistory.push({ role: 'assistant', content: fullText || '' });
+    } else if (assistantEl) {
+      assistantEl.textContent = '[error: ' + err.message + ']'; assistantEl.style.color = 'var(--rd)';
+    }
+  }
+
+  chatBusy = false;
+  _chatAbort = null;
+  sendBtn.textContent = 'send';
+  sendBtn.style.color = 'var(--cy)';
+  input.style.color = 'var(--fg)';
+  input.focus();
+}
+
+function chatStopStream() {
+  if (_chatAbort) { _chatAbort.abort(); _chatAbort = null; }
+}
+
+// keyboard shortcut
+document.addEventListener('keydown', e => {
+  const inp = document.getElementById('chat-input');
+  if (document.activeElement === inp) {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); chatSend(); }
+  }
+});
+document.getElementById('chat-send').addEventListener('click', () => {
+  if (chatBusy) { chatStopStream(); } else { chatSend(); }
+});
+
+// ── LLM ACTION ──
+let _isRunning = false;
+async function llmAction(action) {
+  const statusEl = document.getElementById('tb-status');
+  const lhsEl = document.getElementById('lhs-st');
+  const sbEl = document.getElementById('sb-llm');
+
+  // Show loading state
+  if (statusEl) { statusEl.textContent = '● ' + action + '...'; statusEl.style.color = 'var(--am)'; }
+  if (lhsEl) { lhsEl.textContent = '● ' + action.toUpperCase() + '...'; lhsEl.style.color = 'var(--am)'; }
+  if (sbEl) { sbEl.textContent = '● ' + action.toUpperCase() + '...'; sbEl.style.color = 'var(--am)'; }
+  addLogEntry('INFO', 'llama-server ' + action + ' requested');
+
+  try {
+    let result;
+    if (action === 'start') result = await window.api.start();
+    else if (action === 'stop') result = await window.api.stop();
+    else if (action === 'reboot') result = await window.api.reboot();
+
+    if (result && result.ok) {
+      _isRunning = (action !== 'stop');
+      if (statusEl) { statusEl.textContent = _isRunning ? '● running' : '● stopped'; statusEl.style.color = _isRunning ? 'var(--gr)' : 'var(--rd)'; }
+      if (lhsEl) { lhsEl.textContent = _isRunning ? '● RUNNING' : '● STOPPED'; lhsEl.style.color = _isRunning ? 'var(--gr)' : 'var(--rd)'; }
+      if (sbEl) { sbEl.textContent = _isRunning ? '● RUNNING' : '● STOPPED'; sbEl.style.color = _isRunning ? 'var(--gr)' : 'var(--rd)'; }
+      addLogEntry('INFO', 'llama-server ' + (result.msg || action + ' ok'));
+      if (_isRunning) { await initPorts(); updateFlags(); }
+    } else {
+      addLogEntry('ERR', 'llama-server ' + action + ' failed: ' + (result?.msg || 'unknown'));
+      if (statusEl) { statusEl.textContent = '● error'; statusEl.style.color = 'var(--rd)'; }
+    }
+  } catch (err) {
+    addLogEntry('ERR', action + ' error: ' + err.message);
+    if (statusEl) { statusEl.textContent = '● error'; statusEl.style.color = 'var(--rd)'; }
+  }
+}
+
+// ── SETTINGS ──
+const S = {
+  temperature:0.7, top_p:0.9, top_k:40, min_p:0.05,
+  repeat_penalty:1.1, repeat_last_n:64, frequency_penalty:0, presence_penalty:0,
+  n_predict:-1, seed:-1,
+  n_ctx:81920, n_batch:512, n_gpu_layers:99, threads:4,
+  flash_attn:true, no_context_shift:true, cont_batching:false, mlock:false,
+  cache_type_k:'q8_0', cache_type_v:'q8_0',
+  chat_template:'jinja', reasoning:true,
+  system_prompt:'',
+  stop:[],
+  samplers:['top_k','tfs_z','typical_p','top_p','min_p','temperature'],
+};
+
+function sSet(key, val) {
+  S[key] = val;
+  clearTimeout(sSet._timer);
+  sSet._timer = setTimeout(saveSettingsToConfig, 800);
+}
+
+// ── BLOCK GAUGE ENGINE ──
+const BLOCKS = 16; // number of chars in gauge
+
+function blkRender(el) {
+  const min  = parseFloat(el.dataset.min);
+  const max  = parseFloat(el.dataset.max);
+  const val  = parseFloat(el.dataset.val);
+  const ratio = Math.max(0, Math.min(1, (val - min) / (max - min)));
+  const filled = Math.round(ratio * BLOCKS);
+  el.textContent = '▓'.repeat(filled) + '░'.repeat(BLOCKS - filled);
+}
+
+function blkFmt(el, val) {
+  const fmt = el.dataset.fmt;
+  if (fmt === 'f2') return parseFloat(val).toFixed(2);
+  if (fmt === 'i')  return String(Math.round(val));
+  if (fmt === 'inf') return parseFloat(val) <= -1 ? '∞' : String(Math.round(val));
+  return String(val);
+}
+
+function blkSet(el, ratio) {
+  const min  = parseFloat(el.dataset.min);
+  const max  = parseFloat(el.dataset.max);
+  const step = parseFloat(el.dataset.step);
+  let raw = min + ratio * (max - min);
+  raw = Math.round(raw / step) * step;
+  raw = Math.max(min, Math.min(max, raw));
+  el.dataset.val = raw;
+  const valEl = document.getElementById('sv-' + el.id.slice(2));
+  if (valEl) { valEl.textContent = blkFmt(el, raw); valEl.style.color = 'var(--or)'; }
+  sSet(el.dataset.key, raw);
+  blkRender(el);
+}
+
+// Init all block gauges
+document.querySelectorAll('.blk-gauge').forEach(el => {
+  blkRender(el);
+
+  let dragging = false;
+
+  const getRatio = e => {
+    const r = el.getBoundingClientRect();
+    return Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
+  };
+
+  el.addEventListener('mousedown', e => {
+    dragging = true;
+    el.classList.add('active');
+    blkSet(el, getRatio(e));
+    e.preventDefault();
+  });
+
+  // scroll wheel to nudge
+  el.addEventListener('wheel', e => {
+    e.preventDefault();
+    const min  = parseFloat(el.dataset.min);
+    const max  = parseFloat(el.dataset.max);
+    const step = parseFloat(el.dataset.step);
+    let val = parseFloat(el.dataset.val) + (e.deltaY < 0 ? step : -step);
+    val = Math.max(min, Math.min(max, Math.round(val / step) * step));
+    el.dataset.val = val;
+    const valEl = document.getElementById('sv-' + el.id.slice(2));
+    if (valEl) { valEl.textContent = blkFmt(el, val); valEl.style.color = 'var(--or)'; }
+    sSet(el.dataset.key, val);
+    blkRender(el);
+  }, { passive: false });
+
+  document.addEventListener('mousemove', e => { if (dragging) blkSet(el, getRatio(e)); });
+  document.addEventListener('mouseup', () => { if (dragging) { dragging = false; el.classList.remove('active'); } });
+});
+
+// Seed number input
+const seedEl = document.getElementById('s-seed');
+if (seedEl) seedEl.addEventListener('input', () => sSet('seed', parseInt(seedEl.value)||-1));
+
+// System prompt
+const spEl = document.getElementById('s-sysprompt');
+if (spEl) spEl.addEventListener('input', () => sSet('system_prompt', spEl.value));
+
+// ── SAMPLERS drag-to-reorder ──
+function buildSamplerList() {
+  const list = document.getElementById('sampler-list');
+  if (!list) return;
+  list.innerHTML = '';
+  S.samplers.forEach((name, i) => {
+    const div = document.createElement('div');
+    div.className = 'sampler-item';
+    div.draggable = true;
+    div.dataset.idx = i;
+    div.innerHTML = '<span class="sampler-handle">≡</span><span>'+name+'</span><span style="margin-left:auto;font-size:9px;color:var(--fg3)">'+(i+1)+'</span>';
+    div.addEventListener('dragstart', e => { e.dataTransfer.setData('text/plain', i); div.style.opacity='.4'; });
+    div.addEventListener('dragend', () => { div.style.opacity='1'; list.querySelectorAll('.sampler-item').forEach(el=>el.classList.remove('drag-over')); });
+    div.addEventListener('dragover', e => { e.preventDefault(); div.classList.add('drag-over'); });
+    div.addEventListener('dragleave', () => div.classList.remove('drag-over'));
+    div.addEventListener('drop', e => {
+      e.preventDefault();
+      const from = parseInt(e.dataTransfer.getData('text/plain'));
+      const to = parseInt(div.dataset.idx);
+      if (from !== to) {
+        const moved = S.samplers.splice(from, 1)[0];
+        S.samplers.splice(to, 0, moved);
+        buildSamplerList();
+        clearTimeout(sSet._timer);
+        sSet._timer = setTimeout(saveSettingsToConfig, 800);
+      }
+    });
+    list.appendChild(div);
+  });
+}
+buildSamplerList();
+
+// ── STOP SEQUENCES ──
+function renderStops() {
+  const cont = document.getElementById('stop-tags');
+  if (!cont) return;
+  cont.innerHTML = '';
+  S.stop.forEach((s, i) => {
+    const tag = document.createElement('div');
+    tag.className = 'stop-tag';
+    tag.innerHTML = '<span>'+(s === '\n' ? '\\n' : s.includes('<') ? s.replace(/</g,'&lt;').replace(/>/g,'&gt;') : s)+'</span><button onclick="stopRemove('+i+')">✕</button>';
+    cont.appendChild(tag);
+  });
+}
+function stopAdd() {
+  const inp = document.getElementById('stop-input');
+  if (!inp || !inp.value.trim()) return;
+  S.stop.push(inp.value.trim());
+  inp.value = '';
+  renderStops();
+  clearTimeout(sSet._timer);
+  sSet._timer = setTimeout(saveSettingsToConfig, 800);
+}
+function stopRemove(i) { S.stop.splice(i,1); renderStops(); clearTimeout(sSet._timer); sSet._timer = setTimeout(saveSettingsToConfig, 800); }
+document.getElementById('stop-input')?.addEventListener('keydown', e => { if(e.key==='Enter') stopAdd(); });
+
+// Add common defaults
+S.stop = ['<|im_end|>', '<|endoftext|>'];
+renderStops();
+
+// ── SYSTEM PROMPT ACTIONS ──
+function sApply() {
+  if (!S.system_prompt.trim()) return;
+  // Remove any existing system prompt first
+  while (chatHistory.length > 0 && chatHistory[0].role === 'system') chatHistory.shift();
+  chatHistory.unshift({ role:'system', content: S.system_prompt });
+  const fb = document.getElementById('export-feedback');
+  if (fb) { fb.textContent = 'system prompt applied to next request'; fb.style.color='var(--gr)'; setTimeout(()=>fb.textContent='',2500); }
+}
+function sClear() {
+  chatHistory.length = 0;
+  const msgs = document.getElementById('chat-msgs');
+  if (msgs) msgs.innerHTML = '';
+}
+
+// ── EXPORT ──
+async function exportCmd() {
+  let serverExe = 'llama-server';
+  let modelPath = './model.gguf';
+  try {
+    const config = await window.api.getConfig();
+    serverExe = config.llamaServerExe || serverExe;
+    const p = config.profiles[config.activeProfile];
+    modelPath = p.modelPath || modelPath;
+  } catch {}
+  const cmd = [
+    serverExe,
+    '-m "'+modelPath+'"',
+    '--ctx '+S.n_ctx,
+    '--n-gpu-layers '+S.n_gpu_layers,
+    '--threads '+S.threads,
+    '--n-batch '+S.n_batch,
+    S.flash_attn ? '--flash-attn' : '',
+    S.no_context_shift ? '--no-context-shift' : '',
+    S.cont_batching ? '--cont-batching' : '',
+    S.mlock ? '--mlock' : '',
+    '--cache-type-k '+S.cache_type_k,
+    '--cache-type-v '+S.cache_type_v,
+    S.chat_template === 'jinja' ? '--chat-template-file chat_template.jinja' : '--chat-template '+S.chat_template,
+    S.reasoning ? '--reasoning deepseek' : '',
+    '--host '+(S.host || '0.0.0.0')+' --port '+(S.port || '8080'),
+  ].filter(Boolean).join(' \\\n  ');
+  navigator.clipboard.writeText(cmd).catch(()=>{});
+  const fb = document.getElementById('export-feedback');
+  if (fb) { fb.textContent = 'copied to clipboard'; fb.style.color='var(--gr)'; setTimeout(()=>fb.textContent='',2500); }
+}
+function exportJSON() {
+  const payload = {
+    temperature: S.temperature,
+    top_p: S.top_p,
+    top_k: S.top_k,
+    min_p: S.min_p,
+    repeat_penalty: S.repeat_penalty,
+    repeat_last_n: S.repeat_last_n,
+    frequency_penalty: S.frequency_penalty,
+    presence_penalty: S.presence_penalty,
+    n_predict: S.n_predict,
+    seed: S.seed,
+    stop: S.stop,
+    samplers: S.samplers,
+  };
+  navigator.clipboard.writeText(JSON.stringify(payload, null, 2)).catch(()=>{});
+  const fb = document.getElementById('export-feedback');
+  if (fb) { fb.textContent = 'JSON copied to clipboard'; fb.style.color='var(--gr)'; setTimeout(()=>fb.textContent='',2500); }
+}
+
+// ── SETTINGS DRAG (right column resize) ──
+(()=>{
+  const handle = document.getElementById('drag-settings');
+  const col = document.getElementById('settings-col');
+  if (!handle || !col) return;
+  let drag=false, sx=0, sw=0;
+  handle.addEventListener('mousedown', e => {
+    drag=true; sx=e.clientX; sw=col.offsetWidth;
+    handle.classList.add('on'); document.body.style.cursor='col-resize'; e.preventDefault();
+  });
+  document.addEventListener('mousemove', e => {
+    if (!drag) return;
+    const nw = Math.max(200, Math.min(500, sw - (e.clientX - sx)));
+    col.style.width = nw+'px'; col.style.flex='none';
+  });
+  document.addEventListener('mouseup', () => {
+    if (!drag) return;
+    drag=false; handle.classList.remove('on'); document.body.style.cursor='';
+    saveSizes();
+  });
+})();
+// ── MINI HUD (widget mode) ──
+let _miniOpen = false;
+let _savedBounds = null;
+
+async function toggleMini() {
+  const hud = document.getElementById('mini-hud');
+  const main = document.getElementById('main');
+  const statusbar = document.getElementById('statusbar');
+
+  _miniOpen = !_miniOpen;
+
+  if (_miniOpen) {
+    // Save current window size
+    try { _savedBounds = await window.api.getBounds(); } catch {}
+    // Hide main, show hud inline below topbar
+    main.style.display = 'none';
+    statusbar.style.display = 'none';
+    hud.style.display = 'flex';
+    hud.style.position = 'static';
+    hud.style.border = 'none';
+    hud.style.minWidth = '0';
+    // Resize to widget + always on top
+    const wx = (_savedBounds?.x||100) + (_savedBounds?.width||1400) - 290;
+    try { await window.api.setBounds({width:290, height:340, x:wx, y:_savedBounds?.y||100}); } catch {}
+    try { await window.api.setOnTop(true); } catch {}
+  } else {
+    // Restore
+    hud.style.display = 'none';
+    hud.style.position = 'fixed';
+    hud.style.border = '1px solid var(--bdr)';
+    hud.style.minWidth = '260px';
+    main.style.display = 'flex';
+    statusbar.style.display = 'flex';
+    try { await window.api.setOnTop(false); } catch {}
+    if (_savedBounds) {
+      try { await window.api.setBounds(_savedBounds); } catch {}
+    }
+  }
+}
+
+// Drag mini HUD
+(()=>{
+  const hud  = document.getElementById('mini-hud');
+  const bar  = document.getElementById('mini-drag-bar');
+  if (!hud || !bar) return;
+  let drag=false, ox=0, oy=0, sx=0, sy=0;
+  bar.addEventListener('mousedown', e => {
+    if (e.target.tagName === 'BUTTON') return;
+    drag=true;
+    const r=hud.getBoundingClientRect();
+    ox=r.left; oy=r.top; sx=e.clientX; sy=e.clientY;
+    document.body.style.cursor='move';
+    e.preventDefault();
+  });
+  document.addEventListener('mousemove', e => {
+    if (!drag) return;
+    hud.style.left   = (ox + e.clientX - sx) + 'px';
+    hud.style.top    = (oy + e.clientY - sy) + 'px';
+    hud.style.bottom = 'auto'; hud.style.right = 'auto';
+  });
+  document.addEventListener('mouseup', () => { if(drag){drag=false;document.body.style.cursor='';} });
+})();
+
+// Sync mini HUD values — called from update()
+function updateMini(sys, m, sl) {
+  if (!_miniOpen) return;
+
+  const mSet = (barId, valId, pct, val, col) => {
+    const b=document.getElementById(barId), v=document.getElementById(valId);
+    if(b){b.style.width=Math.min(100,pct)+'%'; b.style.background=col||ramp(pct);}
+    if(v){v.textContent=val; v.style.color=col||ramp(pct);}
+  };
+
+  // System gauges (always available when sys exists)
+  const avg = sys.cpu.cores.reduce((a,b)=>a+b.pct,0)/sys.cpu.cores.length;
+  const vp  = sys.gpu && sys.gpu.vramUsed !== undefined ? sys.gpu.vramUsed/_VMAX*100 : 0;
+  const mp  = sys.mem.used/sys.mem.total*100;
+  mSet('m-cpu-bar','m-cpu-v', avg, avg.toFixed(0)+'%');
+  mSet('m-gpu-bar','m-gpu-v', sys.gpu&&sys.gpu.util!==undefined ? sys.gpu.util : 0, sys.gpu&&sys.gpu.util!==undefined ? sys.gpu.util.toFixed(0)+'%' : '--%');
+  mSet('m-vram-bar','m-vram-v', vp, sys.gpu&&sys.gpu.vramUsed!==undefined ? sys.gpu.vramUsed.toFixed(1)+'G' : '--');
+  mSet('m-ram-bar','m-ram-v', mp, sys.mem.used.toFixed(1)+'G');
+
+  // GPU details
+  if (sys.gpu && sys.gpu.temp !== undefined) {
+    setT('m-gtemp', sys.gpu.temp + '\u00B0C');
+    setT('m-gpow', sys.gpu.power + 'W');
+  }
+
+  // LLM gauges (only when server responds)
+  if (m) {
+    mSet('m-tps-bar','m-tps-v', m._tps/MAX_TPS*100, m._tps.toFixed(1)+' t/s', 'var(--or)');
+    setT('m-ptoks', fmtTok(m.prompt_toks));
+    setT('m-gtoks', fmtTok(m.gen_toks));
+    setT('m-peak', peakTps > 0 ? peakTps.toFixed(1) : '--');
+    const ms = document.getElementById('mini-status');
+    if(ms){ms.textContent=m._run?'● GEN':'● ON';ms.style.color=m._run?'var(--or)':'var(--gr)';}
+  } else {
+    const ms = document.getElementById('mini-status');
+    if(ms){ms.textContent='● OFF';ms.style.color='var(--rd)';}
+  }
+
+  // Model name (once)
+  const mm = document.getElementById('mini-model');
+  if(mm && !mm._set) {
+    const tb = document.getElementById('tb-model');
+    if (tb && tb.textContent !== 'LlamaControl') { mm.textContent = tb.textContent; mm._set = true; }
+  }
+}
+
+// ── SETTINGS PANEL TOGGLE ──
+let _settingsOpen = true;
+let _settingsWidth = 280;
+
+function toggleSettings() {
+  const col    = document.getElementById('settings-col');
+  const inner  = document.getElementById('settings-inner');
+  const arrow  = document.getElementById('settings-arrow');
+  const toggle = document.getElementById('settings-toggle');
+  const label  = document.getElementById('settings-label');
+  const handle = document.getElementById('drag-settings');
+
+  if (_settingsOpen) {
+    _settingsWidth = col.offsetWidth || 280;
+    // collapse
+    col.style.width    = '22px';
+    col.style.minWidth = '22px';
+    col.style.overflow = 'hidden';
+    inner.style.display = 'none';
+    handle.style.display = 'none';
+    // rotate the toggle strip to become a vertical tab
+    toggle.style.writingMode     = 'vertical-rl';
+    toggle.style.height          = '100%';
+    toggle.style.justifyContent  = 'flex-start';
+    toggle.style.padding         = '10px 4px';
+    toggle.style.gap             = '6px';
+    toggle.style.position        = 'relative';
+    toggle.style.borderBottom    = 'none';
+    toggle.style.borderRight     = '1px solid var(--bdr)';
+    label.style.letterSpacing    = '3px';
+    arrow.textContent = '\u2039';
+    arrow.style.transform = 'rotate(180deg)';
+    _settingsOpen = false;
+  } else {
+    // expand
+    col.style.width    = _settingsWidth + 'px';
+    col.style.minWidth = '';
+    col.style.overflowY = 'auto'; col.style.overflowX = 'hidden';
+    inner.style.display = '';
+    handle.style.display = '';
+    // restore toggle strip
+    toggle.style.writingMode    = '';
+    toggle.style.height         = '18px';
+    toggle.style.justifyContent = 'space-between';
+    toggle.style.padding        = '3px 8px';
+    toggle.style.gap            = '';
+    toggle.style.position       = 'sticky';
+    toggle.style.borderBottom   = '1px solid var(--bdr)';
+    toggle.style.borderRight    = 'none';
+    label.style.letterSpacing   = '2px';
+    arrow.textContent = '\u203A';
+    arrow.style.transform = '';
+    _settingsOpen = true;
+  }
+}
+
+// ── IPC CONFIG / SETTINGS SYNC ──
+async function initPorts() {
+  try {
+    const info = await window.api.getServerInfo();
+    if (info) {
+      const host = info.host === '0.0.0.0' ? 'localhost' : info.host;
+      LLM_CHAT_URL = 'http://'+host+':'+info.port+'/v1/chat/completions';
+      _CTX = info.ctxSize || 81920;
+      const ctxLabel = document.getElementById('ctx-cap-label');
+      if (ctxLabel) ctxLabel.textContent = 'Context · ' + _CTX.toLocaleString();
+      document.getElementById('tb-model').textContent = (info.alias || 'llama-server') + ' · ' + host + ':' + info.port;
+    }
+  } catch {}
+}
+
+async function initSettings() {
+  try {
+    const config = await window.api.getConfig();
+    if (!config) return;
+    const p = config.profiles[config.activeProfile] || Object.values(config.profiles)[0];
+    if (!p) return;
+
+    // Map profile to S
+    if (p.chat) {
+      if (p.chat.temperature !== undefined) S.temperature = p.chat.temperature;
+      if (p.chat.topP !== undefined) S.top_p = p.chat.topP;
+      if (p.chat.topK !== undefined) S.top_k = p.chat.topK;
+      if (p.chat.minP !== undefined) S.min_p = p.chat.minP;
+      if (p.chat.presencePenalty !== undefined) S.presence_penalty = p.chat.presencePenalty;
+      if (p.chat.repetitionPenalty !== undefined) S.repeat_penalty = p.chat.repetitionPenalty;
+      if (p.chat.frequencyPenalty !== undefined) S.frequency_penalty = p.chat.frequencyPenalty;
+      if (p.chat.repeatLastN !== undefined) S.repeat_last_n = p.chat.repeatLastN;
+      if (p.chat.seed !== undefined) S.seed = p.chat.seed;
+      if (p.chat.nPredict !== undefined) S.n_predict = p.chat.nPredict;
+      if (p.chat.samplers) S.samplers = [...p.chat.samplers];
+      if (p.chat.stop) S.stop = [...p.chat.stop];
+      if (p.chat.systemPrompt !== undefined) S.system_prompt = p.chat.systemPrompt;
+    }
+    if (p.server) {
+      if (p.server.ctxSize !== undefined) S.n_ctx = p.server.ctxSize;
+      if (p.server.nGpuLayers !== undefined) S.n_gpu_layers = p.server.nGpuLayers;
+      if (p.server.threads !== undefined) S.threads = p.server.threads;
+      if (p.server.nBatch !== undefined) S.n_batch = p.server.nBatch;
+    }
+    if (p.performance) {
+      if (p.performance.flashAttn !== undefined) S.flash_attn = p.performance.flashAttn;
+      if (p.performance.cacheTypeK !== undefined) S.cache_type_k = p.performance.cacheTypeK;
+      if (p.performance.cacheTypeV !== undefined) S.cache_type_v = p.performance.cacheTypeV;
+    }
+    if (p.flags) {
+      if (p.flags.noContextShift !== undefined) S.no_context_shift = p.flags.noContextShift;
+      if (p.flags.contBatching !== undefined) S.cont_batching = p.flags.contBatching;
+      if (p.flags.mlock !== undefined) S.mlock = p.flags.mlock;
+    }
+    if (p.reasoning) {
+      S.reasoning = !!p.reasoning.enabled;
+    }
+    // Chat template: if chatTemplateFile is set, it's jinja mode
+    if (p.chatTemplateFile) {
+      S.chat_template = 'jinja';
+    }
+    if (p.chat && p.chat.systemPrompt) {
+      const sp = document.getElementById('s-sysprompt');
+      if (sp) sp.value = p.chat.systemPrompt;
+    }
+
+    // Sync all gauges to S values
+    syncGaugesToSettings();
+    // Rebuild samplers list
+    buildSamplerList();
+    // Render stops
+    renderStops();
+  } catch(e) { console.error('initSettings error:', e); }
+}
+
+function syncGaugesToSettings() {
+  const gaugeMap = {
+    's-temp': {key:'temperature', fmt:'f2'},
+    's-topp': {key:'top_p', fmt:'f2'},
+    's-topk': {key:'top_k', fmt:'i'},
+    's-minp': {key:'min_p', fmt:'f2'},
+    's-rep':  {key:'repeat_penalty', fmt:'f2'},
+    's-repn': {key:'repeat_last_n', fmt:'i'},
+    's-freq': {key:'frequency_penalty', fmt:'f2'},
+    's-pres': {key:'presence_penalty', fmt:'f2'},
+    's-npred':{key:'n_predict', fmt:'inf'},
+    's-nctx': {key:'n_ctx', fmt:'i'},
+    's-nbatch':{key:'n_batch', fmt:'i'},
+    's-ngl':  {key:'n_gpu_layers', fmt:'i'},
+    's-thr':  {key:'threads', fmt:'i'},
+  };
+  for (const [id, {key, fmt}] of Object.entries(gaugeMap)) {
+    const el = document.getElementById(id);
+    if (el && S[key] !== undefined) {
+      el.dataset.val = S[key];
+      blkRender(el);
+      const valEl = document.getElementById('sv-' + id.slice(2));
+      if (valEl) valEl.textContent = blkFmt(el, S[key]);
+    }
+  }
+  // Checkboxes
+  const chkMap = {'s-fa':'flash_attn','s-ncs':'no_context_shift','s-cont':'cont_batching','s-mlock':'mlock'};
+  for (const [id, key] of Object.entries(chkMap)) {
+    const el = document.getElementById(id);
+    if (el) el.checked = !!S[key];
+  }
+  // Selects
+  const selMap = {'s-ctk':'cache_type_k','s-ctv':'cache_type_v','s-tmpl':'chat_template'};
+  for (const [id, key] of Object.entries(selMap)) {
+    const el = document.getElementById(id);
+    if (el && S[key]) el.value = S[key];
+  }
+  // Seed
+  const seedSync = document.getElementById('s-seed');
+  if (seedSync) seedSync.value = S.seed;
+  // Reasoning checkbox
+  const thinkEl = document.getElementById('s-think');
+  if (thinkEl) thinkEl.checked = !!S.reasoning;
+}
+
+async function saveSettingsToConfig() {
+  try {
+    const config = await window.api.getConfig();
+    const profileName = config.activeProfile;
+    const p = config.profiles[profileName];
+    if (!p) return;
+    // Map S back to profile
+    p.chat.temperature = S.temperature;
+    p.chat.topP = S.top_p;
+    p.chat.topK = S.top_k;
+    p.chat.minP = S.min_p;
+    p.chat.presencePenalty = S.presence_penalty;
+    p.chat.repetitionPenalty = S.repeat_penalty;
+    p.chat.frequencyPenalty = S.frequency_penalty;
+    p.chat.repeatLastN = S.repeat_last_n;
+    p.chat.seed = S.seed;
+    p.chat.nPredict = S.n_predict;
+    p.chat.samplers = [...S.samplers];
+    p.chat.stop = [...S.stop];
+    p.chat.systemPrompt = S.system_prompt;
+    p.server.ctxSize = S.n_ctx;
+    p.server.nGpuLayers = S.n_gpu_layers;
+    p.server.threads = S.threads;
+    p.server.nBatch = S.n_batch;
+    p.performance.flashAttn = S.flash_attn;
+    p.performance.cacheTypeK = S.cache_type_k;
+    p.performance.cacheTypeV = S.cache_type_v;
+    p.flags.noContextShift = S.no_context_shift;
+    p.flags.contBatching = S.cont_batching;
+    p.flags.mlock = S.mlock;
+    p.reasoning.enabled = !!S.reasoning;
+    // Save chat template selection
+    if (S.chat_template === 'jinja') {
+      // Keep existing chatTemplateFile path
+    } else {
+      p.chatTemplateFile = '';
+    }
+    await window.api.saveConfig(config);
+  } catch(e) { console.error('saveSettingsToConfig error:', e); }
+}
+
+// ── PROFILE / MODEL MANAGEMENT ──
+let _models = [];
+
+async function loadProfiles() {
+  try {
+    const {profiles, activeProfile} = await window.api.getProfiles();
+    const sel = document.getElementById('s-profile');
+    sel.innerHTML = '';
+    for (const name of Object.keys(profiles)) {
+      const opt = document.createElement('option');
+      opt.value = name; opt.textContent = name;
+      if (name === activeProfile) opt.selected = true;
+      sel.appendChild(opt);
+    }
+  } catch {}
+}
+
+async function switchProfile(name) {
+  try {
+    await window.api.setActiveProfile(name);
+    await initPorts();
+    await initSettings();
+    updateFlags();
+    addLogEntry('INFO', 'Switched to profile: ' + name);
+  } catch(e) { addLogEntry('ERR', 'Profile switch failed: ' + e.message); }
+}
+
+async function saveAsProfile() {
+  const inp = document.getElementById('s-newprof');
+  const name = (inp.value || '').trim();
+  if (!name) return;
+  try {
+    const config = await window.api.getConfig();
+    const current = config.profiles[config.activeProfile];
+    await window.api.saveProfile(name, {...current, name});
+    await window.api.setActiveProfile(name);
+    inp.value = '';
+    await loadProfiles();
+    addLogEntry('INFO', 'Profile saved: ' + name);
+  } catch(e) { addLogEntry('ERR', 'Save profile failed: ' + e.message); }
+}
+
+async function deleteCurrentProfile() {
+  const sel = document.getElementById('s-profile');
+  const name = sel.value;
+  try {
+    const result = await window.api.deleteProfile(name);
+    if (result.ok) {
+      await loadProfiles();
+      addLogEntry('INFO', 'Profile deleted: ' + name);
+    } else {
+      addLogEntry('WARN', result.msg || 'Cannot delete profile');
+    }
+  } catch(e) { addLogEntry('ERR', e.message); }
+}
+
+async function rescanModels() {
+  try {
+    _models = await window.api.scanModels();
+    const sel = document.getElementById('s-model');
+    sel.innerHTML = '';
+    _models.forEach(m => {
+      const opt = document.createElement('option');
+      opt.value = m.path;
+      opt.textContent = m.name + ' (' + m.sizeDisplay + ')';
+      sel.appendChild(opt);
+    });
+    // Select current model
+    const config = await window.api.getConfig();
+    const p = config.profiles[config.activeProfile];
+    if (p && p.modelPath) sel.value = p.modelPath;
+    document.getElementById('s-model-info').textContent = _models.length + ' models found';
+  } catch(e) { addLogEntry('ERR', 'Scan failed: ' + e.message); }
+}
+
+async function selectModel(modelPath) {
+  try {
+    const model = _models.find(m => m.path === modelPath);
+    if (!model) return;
+    const config = await window.api.getConfig();
+    const p = config.profiles[config.activeProfile];
+    p.modelPath = model.path;
+    p.alias = model.name;
+    if (model.chatTemplateFile) p.chatTemplateFile = model.chatTemplateFile;
+    if (model.mmprojFile) p.mmprojFile = model.mmprojFile;
+    await window.api.saveConfig(config);
+    const info = document.getElementById('s-model-info');
+    if (info) info.textContent = model.name + (model.chatTemplateFile ? ' + jinja' : '') + (model.mmprojFile ? ' + vision' : '');
+    addLogEntry('INFO', 'Model selected: ' + model.name);
+  } catch(e) { addLogEntry('ERR', e.message); }
+}
+
+async function loadPaths() {
+  try {
+    const config = await window.api.getConfig();
+    document.getElementById('s-serverexe').value = config.llamaServerExe || '';
+    document.getElementById('s-modelsdir').value = config.modelsDirectory || '';
+    const p = config.profiles[config.activeProfile];
+    document.getElementById('s-cudagraph').checked = p?.performance?.cudaGraphOpt || false;
+    document.getElementById('s-cudafp16').checked = p?.performance?.cudaForceCublasCompute16F || false;
+  } catch {}
+}
+
+async function savePaths() {
+  try {
+    const config = await window.api.getConfig();
+    config.llamaServerExe = document.getElementById('s-serverexe').value;
+    config.modelsDirectory = document.getElementById('s-modelsdir').value;
+    const p = config.profiles[config.activeProfile];
+    p.performance.cudaGraphOpt = document.getElementById('s-cudagraph').checked;
+    p.performance.cudaForceCublasCompute16F = document.getElementById('s-cudafp16').checked;
+    await window.api.saveConfig(config);
+  } catch {}
+}
+
+async function applyAndRestart() {
+  await saveSettingsToConfig();
+  await savePaths();
+  const fb = document.getElementById('apply-feedback');
+  if (fb) { fb.textContent = 'restarting server...'; fb.style.color = 'var(--am)'; }
+  await llmAction('reboot');
+  if (fb) { fb.textContent = 'server restarted'; fb.style.color = 'var(--gr)'; setTimeout(() => fb.textContent = '', 3000); }
+}
+
+function updateFlags() {
+  // Dynamically rebuild the flags badges from current settings
+  const box = document.querySelector('#box-flg .box-body');
+  if (!box) return;
+  const badges = [];
+  badges.push({t:'--ctx '+S.n_ctx, c:'b-cy'});
+  badges.push({t:'--n-gpu-layers '+S.n_gpu_layers, c:'b-or'});
+  if (S.flash_attn) badges.push({t:'--flash-attn', c:'b-gr'});
+  badges.push({t:'--cache-type-k '+S.cache_type_k, c:'b-cy'});
+  badges.push({t:'--cache-type-v '+S.cache_type_v, c:'b-cy'});
+  badges.push({t:'--threads '+S.threads, c:'b-am'});
+  if (S.no_context_shift) badges.push({t:'--no-context-shift', c:'b-rd'});
+  if (S.reasoning) badges.push({t:'--reasoning deepseek', c:'b-vi'});
+  badges.push({t:'--n-batch '+S.n_batch, c:'b-dm'});
+  if (S.cont_batching) badges.push({t:'--cont-batching', c:'b-gr'});
+  if (S.mlock) badges.push({t:'--mlock', c:'b-gr'});
+  box.innerHTML = badges.map(b => '<span class="badge '+b.c+'">'+b.t+'</span>').join('');
+}
+
+// ── TAB SYSTEM: CHAT / TERMINAL / WSL2 ──
+const _tabs = {chat: true, term: false, wsl: false};
+const _termInstances = {}; // id -> {xterm, fitAddon, started}
+
+function switchTab(id) {
+  for (const t of ['chat','term','wsl']) {
+    const panel = document.getElementById('panel-'+t);
+    if (t===id) {
+      panel.style.display = t==='chat' ? 'flex' : 'block';
+    } else {
+      panel.style.display = 'none';
+    }
+    const btn = document.getElementById('tab-'+t);
+    if (btn) { btn.classList.toggle('active', t===id); if(t!==id) btn.style.color='var(--fg3)'; }
+  }
+  // Lazy-init terminals
+  if (id === 'term' && !_termInstances.term) initTerminal('term', 'powershell.exe');
+  if (id === 'wsl'  && !_termInstances.wsl)  initTerminal('wsl', 'wsl.exe');
+  // Fit on switch
+  if (_termInstances[id]) setTimeout(() => _termInstances[id].fitAddon.fit(), 50);
+}
+
+async function initTerminal(id, shell) {
+  if (!window.Terminal || !window.FitAddon) {
+    console.error('xterm not loaded! Terminal:', typeof window.Terminal, 'FitAddon:', typeof window.FitAddon);
+    const container = document.getElementById('panel-'+id);
+    container.innerHTML = '<div style="padding:10px;color:var(--rd);font-size:10px;">xterm.js failed to load</div>';
+    return;
+  }
+  const Terminal = window.Terminal;
+  const FitAddon = window.FitAddon.FitAddon;
+
+  const term = new Terminal({
+    fontFamily: "'JetBrains Mono', monospace",
+    fontSize: 11,
+    theme: {
+      background: '#0c0c0c',
+      foreground: '#c8c093',
+      cursor: '#fe8019',
+      cursorAccent: '#0c0c0c',
+      selectionBackground: 'rgba(254,128,25,0.25)',
+      black: '#0c0c0c', red: '#fb4934', green: '#b8bb26', yellow: '#fabd2f',
+      blue: '#83a598', magenta: '#d3869b', cyan: '#8ec07c', white: '#ebdbb2',
+      brightBlack: '#49483e', brightRed: '#fb4934', brightGreen: '#b8bb26', brightYellow: '#fabd2f',
+      brightBlue: '#83a598', brightMagenta: '#d3869b', brightCyan: '#8ec07c', brightWhite: '#ebdbb2',
+    },
+    cursorBlink: true,
+    scrollback: 5000,
+  });
+
+  const fitAddon = new FitAddon();
+  term.loadAddon(fitAddon);
+
+  const container = document.getElementById('panel-'+id);
+  term.open(container);
+  fitAddon.fit();
+
+  _termInstances[id] = { xterm: term, fitAddon, started: true };
+
+  // Create PTY in main process
+  const result = await window.api.ptyCreate(id, shell);
+  if (!result || !result.ok) {
+    term.writeln('\x1b[31mFailed to start '+shell+': '+(result?.msg||'unknown')+'\x1b[0m');
+    return;
+  }
+
+  // Wire data
+  term.onData(data => window.api.ptyWrite(id, data));
+  term.onResize(({cols, rows}) => window.api.ptyResize(id, cols, rows));
+
+  // Send initial size
+  window.api.ptyResize(id, term.cols, term.rows);
+
+  // Observe container resize
+  new ResizeObserver(() => { try { fitAddon.fit(); } catch {} }).observe(container);
+}
+
+// Receive PTY data
+window.api.onPtyData((id, data) => {
+  if (_termInstances[id]) _termInstances[id].xterm.write(data);
+});
+window.api.onPtyExit((id) => {
+  if (_termInstances[id]) {
+    _termInstances[id].xterm.writeln('\r\n\x1b[33m[process exited]\x1b[0m');
+  }
+});
+</script>
+</body>
+</html>

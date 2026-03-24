@@ -1,0 +1,690 @@
+const { app, BrowserWindow, ipcMain } = require("electron");
+const { spawn, exec } = require("child_process");
+const path = require("path");
+const fs = require("fs");
+const http = require("http");
+const os = require("os");
+let pty;
+try { pty = require("node-pty"); } catch { pty = null; }
+
+const LOG_FILE = path.join(require("os").tmpdir(), "llama-server.log");
+
+// ── Config Management ────────────────────────────────────────────────
+
+const MODEL_PATH = "";
+const TEMPLATE_PATH = "";
+const MMPROJ_PATH = "";
+
+const DEFAULT_CONFIG = {
+  version: 2,
+  llamaServerExe: process.platform === "win32" ? "llama-server.exe" : "llama-server",
+  modelsDirectory: path.join(os.homedir(), "Models"),
+  activeProfile: "Thinking General",
+  profiles: {
+    // ── Profile 1: Thinking General ──────────────────────────────────
+    // Usage: Conversation, analyse, raisonnement, taches generales
+    // Source: DavidAU model card "Thinking Mode General Tasks" + Qwen official
+    // Optimized: 80k context, KV cache mixte q8/q4, sampling ajuste long contexte
+    "Thinking General": {
+      name: "Thinking General",
+      modelPath: MODEL_PATH,
+      alias: "Qwen3.5-9B-DavidAU-HERETIC",
+      chatTemplateFile: TEMPLATE_PATH,
+      mmprojFile: MMPROJ_PATH,
+      server: { host: "0.0.0.0", port: 8080, ctxSize: 81920, nGpuLayers: 99, threads: 4, nBatch: 4096 },
+      performance: { flashAttn: true, cacheTypeK: "q8_0", cacheTypeV: "q8_0", cudaGraphOpt: true, cudaForceCublasCompute16F: true },
+      reasoning: { enabled: true, format: "deepseek" },
+      chat: {
+        maxTokens: 81920, temperature: 1.0, topP: 0.95, topK: 20, minP: 0.05,
+        presencePenalty: 0.9, repetitionPenalty: 1.0,
+        seed: -1, repeatLastN: 256, frequencyPenalty: 0, nPredict: -1,
+        samplers: ["top_k", "tfs_z", "typical_p", "top_p", "min_p", "temperature"],
+        stop: ["<|im_end|>", "<|endoftext|>"],
+        systemPrompt: "",
+      },
+      flags: { noContextShift: true, extraArgs: "", contBatching: true, mlock: true },
+    },
+    // ── Profile 2: Thinking Code ─────────────────────────────────────
+    // Usage: Coding precis, WebDev, generation de code structuree
+    // Source: DavidAU "Thinking Mode Precise Coding" - temp basse, pas de presence penalty
+    // Optimized: 80k context, KV cache mixte q8/q4, sampling ajuste long contexte
+    "Thinking Code": {
+      name: "Thinking Code",
+      modelPath: MODEL_PATH,
+      alias: "Qwen3.5-9B-DavidAU-HERETIC",
+      chatTemplateFile: TEMPLATE_PATH,
+      mmprojFile: MMPROJ_PATH,
+      server: { host: "0.0.0.0", port: 8080, ctxSize: 81920, nGpuLayers: 99, threads: 4, nBatch: 4096 },
+      performance: { flashAttn: true, cacheTypeK: "q8_0", cacheTypeV: "q8_0", cudaGraphOpt: true, cudaForceCublasCompute16F: true },
+      reasoning: { enabled: true, format: "deepseek" },
+      chat: {
+        maxTokens: 81920, temperature: 0.6, topP: 0.95, topK: 20, minP: 0.05,
+        presencePenalty: 0.0, repetitionPenalty: 1.0,
+        seed: -1, repeatLastN: 256, frequencyPenalty: 0, nPredict: -1,
+        samplers: ["top_k", "tfs_z", "typical_p", "top_p", "min_p", "temperature"],
+        stop: ["<|im_end|>", "<|endoftext|>"],
+        systemPrompt: "",
+      },
+      flags: { noContextShift: true, extraArgs: "", contBatching: true, mlock: true },
+    },
+    // ── Profile 3: Fast Chat ─────────────────────────────────────────
+    // Usage: Chat rapide, ecriture creative, roleplay - thinking OFF
+    // Source: Qwen official "Non-Thinking General Tasks" - top_p serre, reponses rapides
+    // Optimized: 80k context, KV cache mixte q8/q4, sampling ajuste long contexte
+    "Fast Chat": {
+      name: "Fast Chat",
+      modelPath: MODEL_PATH,
+      alias: "Qwen3.5-9B-DavidAU-HERETIC",
+      chatTemplateFile: TEMPLATE_PATH,
+      mmprojFile: MMPROJ_PATH,
+      server: { host: "0.0.0.0", port: 8080, ctxSize: 81920, nGpuLayers: 99, threads: 4, nBatch: 4096 },
+      performance: { flashAttn: true, cacheTypeK: "q8_0", cacheTypeV: "q8_0", cudaGraphOpt: true, cudaForceCublasCompute16F: true },
+      reasoning: { enabled: false, format: "deepseek" },
+      chat: {
+        maxTokens: 8192, temperature: 0.7, topP: 0.8, topK: 20, minP: 0.05,
+        presencePenalty: 0.9, repetitionPenalty: 1.0,
+        seed: -1, repeatLastN: 256, frequencyPenalty: 0, nPredict: -1,
+        samplers: ["top_k", "tfs_z", "typical_p", "top_p", "min_p", "temperature"],
+        stop: ["<|im_end|>", "<|endoftext|>"],
+        systemPrompt: "",
+      },
+      flags: { noContextShift: true, extraArgs: "", contBatching: true, mlock: true },
+    },
+  },
+};
+
+let config = null;
+let configPath = null;
+
+function loadConfig() {
+  try {
+    if (fs.existsSync(configPath)) {
+      const raw = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+      return { ...JSON.parse(JSON.stringify(DEFAULT_CONFIG)), ...raw, profiles: { ...DEFAULT_CONFIG.profiles, ...raw.profiles } };
+    }
+  } catch {}
+  const cfg = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
+  saveConfig(cfg);
+  return cfg;
+}
+
+function saveConfig(cfg) {
+  fs.writeFileSync(configPath, JSON.stringify(cfg, null, 2), "utf-8");
+}
+
+function getActiveProfile() {
+  return config.profiles[config.activeProfile] || config.profiles.default || Object.values(config.profiles)[0];
+}
+
+// ── Server Management ────────────────────────────────────────────────
+
+// Cross-platform process tree kill
+function killPid(pid) {
+  return new Promise((resolve) => {
+    if (process.platform === "win32") {
+      exec(`taskkill /F /T /PID ${pid}`, { timeout: 5000 }, () => resolve());
+    } else {
+      // On Unix, detached processes are group leaders — kill the group
+      try { process.kill(-pid, "SIGKILL"); } catch {}
+      resolve();
+    }
+  });
+}
+
+function killByName(name) {
+  return new Promise((resolve) => {
+    if (process.platform === "win32") {
+      exec(`taskkill /F /IM ${name}`, { timeout: 5000 }, () => resolve());
+    } else {
+      exec(`pkill -9 -f ${name}`, { timeout: 5000 }, () => resolve());
+    }
+  });
+}
+
+let serverProcess = null;
+
+function buildServerArgs() {
+  const p = getActiveProfile();
+  const args = [
+    "--model", p.modelPath,
+    "--host", p.server.host,
+    "--port", String(p.server.port),
+    "--ctx-size", String(p.server.ctxSize),
+    "--n-gpu-layers", String(p.server.nGpuLayers),
+    "--threads", String(p.server.threads),
+    "--alias", p.alias,
+    "--cache-type-k", p.performance.cacheTypeK,
+    "--cache-type-v", p.performance.cacheTypeV,
+    "--batch-size", String(p.server.nBatch || 2048),
+    "--metrics",
+    "--slots",
+    "--jinja",
+  ];
+  if (p.chatTemplateFile) args.push("--chat-template-file", p.chatTemplateFile);
+  if (p.mmprojFile) args.push("--mmproj", p.mmprojFile);
+  if (p.performance.flashAttn) args.push("--flash-attn", "on");
+  if (p.reasoning.enabled) {
+    args.push("--reasoning-format", p.reasoning.format);
+  }
+  if (p.flags.noContextShift) args.push("--no-context-shift");
+  if (p.flags.contBatching) args.push("--cont-batching");
+  if (p.flags.mlock) args.push("--mlock");
+  if (p.flags.extraArgs && p.flags.extraArgs.trim()) {
+    args.push(...p.flags.extraArgs.trim().split(/\s+/));
+  }
+  return args;
+}
+
+function buildServerEnv() {
+  const p = getActiveProfile();
+  const env = { ...process.env };
+  if (p.performance.cudaGraphOpt) env.GGML_CUDA_GRAPH_OPT = "1";
+  if (p.performance.cudaForceCublasCompute16F) env.GGML_CUDA_FORCE_CUBLAS_COMPUTE_16F = "1";
+  return env;
+}
+
+function getPort() {
+  return getActiveProfile().server.port;
+}
+
+function checkHealth() {
+  return new Promise((resolve) => {
+    const req = http.get(`http://localhost:${getPort()}/health`, { timeout: 3000 }, (res) => {
+      let data = "";
+      res.on("data", (chunk) => (data += chunk));
+      res.on("end", () => {
+        try { resolve(JSON.parse(data)); } catch { resolve(null); }
+      });
+    });
+    req.on("error", () => resolve(null));
+    req.on("timeout", () => { req.destroy(); resolve(null); });
+  });
+}
+
+function startServer() {
+  return new Promise((resolve, reject) => {
+    const logStream = fs.openSync(LOG_FILE, "w");
+    const child = spawn(config.llamaServerExe, buildServerArgs(), {
+      detached: true,
+      stdio: ["ignore", logStream, logStream],
+      env: buildServerEnv(),
+    });
+    child.on("error", (err) => reject(err));
+    fs.closeSync(logStream);
+    child.unref();
+    serverProcess = child;
+    resolve();
+  });
+}
+
+async function stopServer() {
+  if (serverProcess && serverProcess.pid) {
+    await killPid(serverProcess.pid);
+    serverProcess = null;
+  } else {
+    const name = process.platform === "win32" ? "llama-server.exe" : "llama-server";
+    await killByName(name);
+  }
+}
+
+// ── Companion.py Lifecycle ───────────────────────────────────────────
+
+let companionProcess = null;
+
+function startCompanion() {
+  return new Promise((resolve) => {
+    if (companionProcess) { resolve(); return; }
+    const pyScript = path.join(__dirname, "companion.py");
+    try {
+      const child = spawn("python", [pyScript], {
+        detached: true,
+        stdio: "ignore",
+      });
+      child.on("error", () => { companionProcess = null; });
+      child.unref();
+      companionProcess = child;
+      // Give it a moment to start
+      setTimeout(() => resolve(), 500);
+    } catch (e) {
+      companionProcess = null;
+      resolve();
+    }
+  });
+}
+
+async function stopCompanion() {
+  if (companionProcess && companionProcess.pid) {
+    await killPid(companionProcess.pid);
+    companionProcess = null;
+  }
+}
+
+// ── IPC: Server Controls ─────────────────────────────────────────────
+
+ipcMain.handle("get-status", async () => {
+  const health = await checkHealth();
+  if (!health) return { running: false, status: "stopped" };
+  return { running: true, status: health.status || "ok" };
+});
+
+ipcMain.handle("start-server", async () => {
+  const health = await checkHealth();
+  if (health) return { ok: true, msg: "Already running" };
+  await startServer();
+  for (let i = 0; i < 60; i++) {
+    await new Promise((r) => setTimeout(r, 1000));
+    const h = await checkHealth();
+    if (h) return { ok: true, msg: "Started" };
+  }
+  return { ok: false, msg: "Timeout waiting for server" };
+});
+
+ipcMain.handle("stop-server", async () => {
+  await stopServer();
+  await new Promise((r) => setTimeout(r, 1000));
+  return { ok: true, msg: "Stopped" };
+});
+
+ipcMain.handle("reboot-server", async () => {
+  await stopServer();
+  await new Promise((r) => setTimeout(r, 2000));
+  await startServer();
+  for (let i = 0; i < 60; i++) {
+    await new Promise((r) => setTimeout(r, 1000));
+    const h = await checkHealth();
+    if (h) return { ok: true, msg: "Rebooted" };
+  }
+  return { ok: false, msg: "Timeout waiting for server" };
+});
+
+ipcMain.handle("get-logs", async (event, lineCount) => {
+  try {
+    const content = fs.readFileSync(LOG_FILE, "utf-8");
+    const lines = content.split("\n");
+    return lines.slice(-(lineCount || 40)).join("\n");
+  } catch {
+    return "(no logs)";
+  }
+});
+
+// ── IPC: Server Info & Metrics ───────────────────────────────────────
+
+ipcMain.handle("get-server-info", async () => {
+  const p = getActiveProfile();
+  return {
+    host: p.server.host,
+    port: p.server.port,
+    ctxSize: p.server.ctxSize,
+    alias: p.alias,
+    modelPath: p.modelPath,
+    nGpuLayers: p.server.nGpuLayers,
+    threads: p.server.threads,
+    nBatch: p.server.nBatch || 512,
+    flashAttn: p.performance.flashAttn,
+    cacheTypeK: p.performance.cacheTypeK,
+    cacheTypeV: p.performance.cacheTypeV,
+    noContextShift: p.flags.noContextShift,
+    reasoning: p.reasoning,
+    chatTemplateFile: p.chatTemplateFile,
+  };
+});
+
+ipcMain.handle("get-system-metrics", async () => {
+  return new Promise((resolve) => {
+    const req = http.get("http://localhost:8765", { timeout: 2000 }, (res) => {
+      if (res.statusCode !== 200) { res.resume(); resolve(null); return; }
+      let data = "";
+      res.on("data", (chunk) => (data += chunk));
+      res.on("end", () => {
+        try { resolve(JSON.parse(data)); } catch { resolve(null); }
+      });
+    });
+    req.on("error", () => resolve(null));
+    req.on("timeout", () => { req.destroy(); resolve(null); });
+  });
+});
+
+ipcMain.handle("get-llm-metrics", async () => {
+  return new Promise((resolve) => {
+    const req = http.get(`http://localhost:${getPort()}/metrics`, { timeout: 2000 }, (res) => {
+      if (res.statusCode !== 200) { res.resume(); resolve(null); return; }
+      let data = "";
+      res.on("data", (chunk) => (data += chunk));
+      res.on("end", () => {
+        try {
+          // Parse Prometheus text format
+          const m = {};
+          data.split("\n").forEach((l) => {
+            if (l.startsWith("#") || !l.trim()) return;
+            const r = l.match(/^([^\s{]+)(?:\{[^}]*\})?\s+(.+)$/);
+            if (r) m[r[1]] = parseFloat(r[2]);
+          });
+          resolve(Object.keys(m).length > 0 ? m : null);
+        } catch { resolve(null); }
+      });
+    });
+    req.on("error", () => resolve(null));
+    req.on("timeout", () => { req.destroy(); resolve(null); });
+  });
+});
+
+ipcMain.handle("get-llm-slots", async () => {
+  return new Promise((resolve) => {
+    const req = http.get(`http://localhost:${getPort()}/slots`, { timeout: 2000 }, (res) => {
+      if (res.statusCode !== 200) { res.resume(); resolve([]); return; }
+      let data = "";
+      res.on("data", (chunk) => (data += chunk));
+      res.on("end", () => {
+        try { resolve(JSON.parse(data)); } catch { resolve([]); }
+      });
+    });
+    req.on("error", () => resolve([]));
+    req.on("timeout", () => { req.destroy(); resolve([]); });
+  });
+});
+
+// ── IPC: Companion Lifecycle ─────────────────────────────────────────
+
+ipcMain.handle("start-companion", async () => {
+  await startCompanion();
+  return { ok: true };
+});
+
+ipcMain.handle("stop-companion", async () => {
+  await stopCompanion();
+  return { ok: true };
+});
+
+// ── IPC: Chat ────────────────────────────────────────────────────────
+
+let currentChatReq = null;
+
+ipcMain.handle("chat-send", async (event, messages, inferenceParams) => {
+  const p = getActiveProfile();
+  const params = inferenceParams || {};
+  const body = JSON.stringify({
+    messages,
+    max_tokens: params.n_predict !== undefined && params.n_predict > 0 ? params.n_predict : p.chat.maxTokens,
+    stream: true,
+    temperature: params.temperature ?? p.chat.temperature,
+    top_p: params.top_p ?? p.chat.topP,
+    top_k: params.top_k ?? p.chat.topK,
+    min_p: params.min_p ?? p.chat.minP,
+    presence_penalty: params.presence_penalty ?? p.chat.presencePenalty,
+    repeat_penalty: params.repeat_penalty ?? p.chat.repetitionPenalty,
+    frequency_penalty: params.frequency_penalty ?? p.chat.frequencyPenalty ?? 0,
+    repeat_last_n: params.repeat_last_n ?? p.chat.repeatLastN ?? 64,
+    seed: params.seed !== undefined && params.seed >= 0 ? params.seed : undefined,
+    stop: params.stop && params.stop.length > 0 ? params.stop : undefined,
+    samplers: params.samplers || undefined,
+  });
+
+  return new Promise((resolve, reject) => {
+    let resolved = false;
+    const req = http.request({
+      hostname: "localhost",
+      port: getPort(),
+      path: "/v1/chat/completions",
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(body) },
+    }, (res) => {
+      let buffer = "";
+      res.on("data", (chunk) => {
+        buffer += chunk.toString();
+        const lines = buffer.split("\n");
+        buffer = lines.pop();
+        for (const line of lines) {
+          if (line.startsWith("data: ")) {
+            const data = line.slice(6).trim();
+            if (data === "[DONE]") {
+              if (!resolved) {
+                resolved = true;
+                win.webContents.send("chat-done");
+                currentChatReq = null;
+                resolve({ ok: true });
+              }
+              return;
+            }
+            try {
+              const parsed = JSON.parse(data);
+              const delta = parsed.choices?.[0]?.delta || {};
+              win.webContents.send("chat-token", delta);
+            } catch {}
+          }
+        }
+      });
+      res.on("end", () => {
+        if (!resolved) {
+          resolved = true;
+          win.webContents.send("chat-done");
+          currentChatReq = null;
+          resolve({ ok: true });
+        }
+      });
+    });
+    req.on("error", (err) => {
+      win.webContents.send("chat-done");
+      currentChatReq = null;
+      reject(err);
+    });
+    currentChatReq = req;
+    req.write(body);
+    req.end();
+  });
+});
+
+ipcMain.handle("chat-stop", async () => {
+  if (currentChatReq) {
+    currentChatReq.destroy();
+    currentChatReq = null;
+  }
+  return { ok: true };
+});
+
+// ── IPC: Config & Profiles ───────────────────────────────────────────
+
+ipcMain.handle("get-config", async () => {
+  return config;
+});
+
+ipcMain.handle("save-config", async (event, newConfig) => {
+  config = newConfig;
+  saveConfig(config);
+  return { ok: true };
+});
+
+ipcMain.handle("scan-models", async () => {
+  const modelsDir = config.modelsDirectory;
+  const results = [];
+
+  function scanDir(dir) {
+    let entries;
+    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+    for (const entry of entries) {
+      const fullPath = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        scanDir(fullPath);
+      } else if (entry.name.endsWith(".gguf") && !entry.name.toLowerCase().startsWith("mmproj")) {
+        const stats = fs.statSync(fullPath);
+        const parentDir = path.dirname(fullPath);
+        const parentFiles = fs.readdirSync(parentDir);
+        const chatTemplate = parentFiles.find((f) => /^chat_template.*\.jinja$/.test(f));
+        const mmproj = parentFiles.find((f) => /^mmproj.*\.gguf$/i.test(f));
+        results.push({
+          path: fullPath,
+          name: entry.name.replace(".gguf", ""),
+          sizeBytes: stats.size,
+          sizeDisplay: (stats.size / (1024 * 1024 * 1024)).toFixed(1) + " GB",
+          chatTemplateFile: chatTemplate ? path.join(parentDir, chatTemplate) : null,
+          mmprojFile: mmproj ? path.join(parentDir, mmproj) : null,
+          directory: parentDir,
+        });
+      }
+    }
+  }
+
+  scanDir(modelsDir);
+  return results;
+});
+
+ipcMain.handle("get-profiles", async () => {
+  return { profiles: config.profiles, activeProfile: config.activeProfile };
+});
+
+ipcMain.handle("save-profile", async (event, name, profile) => {
+  config.profiles[name] = { ...profile, name };
+  saveConfig(config);
+  return { ok: true };
+});
+
+ipcMain.handle("delete-profile", async (event, name) => {
+  if (name === config.activeProfile) {
+    return { ok: false, msg: "Cannot delete the active profile" };
+  }
+  delete config.profiles[name];
+  saveConfig(config);
+  return { ok: true };
+});
+
+ipcMain.handle("set-active-profile", async (event, name) => {
+  if (!config.profiles[name]) {
+    return { ok: false, msg: "Profile not found" };
+  }
+  config.activeProfile = name;
+  saveConfig(config);
+  return { ok: true };
+});
+
+ipcMain.handle("kill-process", async (event, pid) => {
+  pid = parseInt(pid, 10);
+  if (isNaN(pid) || pid <= 0) return { ok: false, msg: "invalid pid" };
+  try {
+    process.kill(pid, "SIGKILL");
+    return { ok: true, msg: "killed" };
+  } catch (err) {
+    return { ok: false, msg: err.message };
+  }
+});
+
+// ── IPC: Terminal PTY (with child_process fallback) ──────────────────
+
+const terminals = {}; // id -> {type:'pty'|'proc', handle}
+
+ipcMain.handle("pty-create", (event, id, shellCmd) => {
+  if (terminals[id]) return { ok: true, msg: "already exists" };
+  const shell = shellCmd || (process.platform === "win32" ? "powershell.exe" : "bash");
+
+  // Try node-pty first, fallback to child_process
+  if (pty) {
+    try {
+      const term = pty.spawn(shell, [], {
+        name: "xterm-256color", cols: 120, rows: 30,
+        cwd: os.homedir(), env: process.env,
+      });
+      terminals[id] = { type: "pty", handle: term };
+      term.onData((data) => {
+        if (win && !win.isDestroyed()) win.webContents.send("pty-data", id, data);
+      });
+      term.onExit(() => {
+        delete terminals[id];
+        if (win && !win.isDestroyed()) win.webContents.send("pty-exit", id);
+      });
+      return { ok: true, mode: "pty" };
+    } catch (e) { /* fallthrough to spawn */ }
+  }
+
+  // Fallback: child_process.spawn
+  try {
+    const child = spawn(shell, [], {
+      cwd: os.homedir(),
+      env: { ...process.env, TERM: "xterm-256color" },
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+    terminals[id] = { type: "proc", handle: child };
+    child.stdout.on("data", (data) => {
+      if (win && !win.isDestroyed()) win.webContents.send("pty-data", id, data.toString());
+    });
+    child.stderr.on("data", (data) => {
+      if (win && !win.isDestroyed()) win.webContents.send("pty-data", id, data.toString());
+    });
+    child.on("exit", () => {
+      delete terminals[id];
+      if (win && !win.isDestroyed()) win.webContents.send("pty-exit", id);
+    });
+    return { ok: true, mode: "spawn" };
+  } catch (e) {
+    return { ok: false, msg: e.message };
+  }
+});
+
+ipcMain.handle("pty-write", (event, id, data) => {
+  const t = terminals[id];
+  if (!t) return;
+  if (t.type === "pty") t.handle.write(data);
+  else t.handle.stdin.write(data);
+});
+
+ipcMain.handle("pty-resize", (event, id, cols, rows) => {
+  const t = terminals[id];
+  if (t && t.type === "pty") t.handle.resize(cols, rows);
+});
+
+ipcMain.handle("pty-kill", (event, id) => {
+  const t = terminals[id];
+  if (!t) return;
+  if (t.type === "pty") t.handle.kill();
+  else { t.handle.kill(); }
+  delete terminals[id];
+});
+
+// ── IPC: Window Controls ─────────────────────────────────────────────
+
+ipcMain.handle("window-minimize", () => { if (win) win.minimize(); });
+ipcMain.handle("window-maximize", () => { if (win) { win.isMaximized() ? win.unmaximize() : win.maximize(); } });
+ipcMain.handle("window-close", () => { if (win) win.close(); });
+ipcMain.handle("window-set-bounds", (event, bounds) => {
+  if (win) win.setBounds(bounds);
+});
+ipcMain.handle("window-set-on-top", (event, flag) => {
+  if (win) win.setAlwaysOnTop(flag, 'floating');
+});
+ipcMain.handle("window-get-bounds", () => {
+  if (win) return win.getBounds();
+  return null;
+});
+
+// ── Window ───────────────────────────────────────────────────────────
+
+let win;
+
+app.whenReady().then(() => {
+  configPath = path.join(app.getPath("userData"), "config.json");
+  config = loadConfig();
+
+  win = new BrowserWindow({
+    width: 1400,
+    height: 900,
+    minWidth: 280,
+    minHeight: 200,
+    frame: false,
+    icon: fs.existsSync(path.join(__dirname, "icon.png")) ? path.join(__dirname, "icon.png") : undefined,
+    webPreferences: {
+      preload: path.join(__dirname, "preload.js"),
+    },
+  });
+  win.setMenuBarVisibility(false);
+  win.loadFile("index.html");
+
+  startCompanion();
+});
+
+app.on("window-all-closed", async () => {
+  Object.values(terminals).forEach(t => { try { t.kill(); } catch {} });
+  await stopCompanion();
+  app.quit();
+});
+
+app.on("before-quit", async () => {
+  Object.values(terminals).forEach(t => { try { t.kill(); } catch {} });
+  await stopCompanion();
+});
