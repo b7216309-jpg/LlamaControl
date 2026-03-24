@@ -12,7 +12,7 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 import psutil
 
 try:
-    import platform, sys
+    import platform, sys, subprocess
     _cpu_brand = "CPU"
     if sys.platform == "win32":
         try:
@@ -26,6 +26,28 @@ try:
         _cpu_brand = platform.processor() or "CPU"
 except Exception:
     _cpu_brand = "CPU"
+
+_ram_label = "RAM"
+try:
+    if sys.platform == "win32":
+        out = subprocess.check_output(
+            ["wmic", "memorychip", "get", "Speed,SMBIOSMemoryType", "/format:csv"],
+            text=True, timeout=5, stderr=subprocess.DEVNULL
+        )
+        _ddr_map = {20: "DDR", 21: "DDR2", 24: "DDR3", 26: "DDR4", 34: "DDR5"}
+        for line in out.strip().splitlines():
+            parts = [p.strip() for p in line.split(",") if p.strip()]
+            if len(parts) >= 3:
+                try:
+                    smbios_type = int(parts[1])
+                    speed = int(parts[2])
+                    ddr = _ddr_map.get(smbios_type, "DDR")
+                    _ram_label = f"{ddr}-{speed}"
+                    break
+                except ValueError:
+                    continue
+except Exception:
+    pass
 
 try:
     import pynvml
@@ -88,6 +110,7 @@ def collect():
             except Exception:
                 clk = 0
             gpu = {
+                "name":      gpu_name,
                 "util":      util.gpu,
                 "memUtil":   util.memory,
                 "temp":      temp,
@@ -179,6 +202,7 @@ def collect():
         },
         "gpu":  gpu,
         "mem": {
+            "label":     _ram_label,
             "used":      round(mem.used      / (1024**3), 2),
             "cache":     round((getattr(mem, "cached", 0) + getattr(mem, "buffers", 0)) / (1024**3), 2),
             "available": round(mem.available / (1024**3), 2),

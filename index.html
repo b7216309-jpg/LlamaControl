@@ -582,12 +582,13 @@ if(window.__module){module=window.__module;if(window.__exports)exports=window.__
   <!-- LOG -->
   <div class="box" id="box-log" style="flex:1;min-height:60px;">
     <div class="box-title" style="color:var(--fg2)">┤ llama-server · inference log ├</div>
-    <div id="log-lines" style="flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;display:flex;flex-direction:column;justify-content:flex-end;margin-top:13px;padding-bottom:2px;"></div>
+    <button class="box-collapse" onclick="toggleBox('box-log')">-</button>
+    <div id="log-lines" class="box-body" style="flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;display:flex;flex-direction:column;justify-content:flex-end;margin-top:13px;padding-bottom:2px;"></div>
   </div>
   <div class="drag-h" data-a="box-log" data-b="box-chat"></div>
 
   <!-- CHAT / TERMINAL TABS -->
-  <div class="box" id="box-chat" style="flex:1 0 60px;">
+  <div class="box" id="box-chat" style="flex:1 0 60px;border-bottom:none;">
     <div class="box-title" style="color:var(--cy)">
       <span class="tab-btn active" id="tab-chat" onclick="switchTab('chat')" style="cursor:pointer;padding:0 6px;">Chat</span>
       <span style="color:var(--fg3)">|</span>
@@ -876,7 +877,7 @@ function saveAS() { localStorage.setItem(APP_SETTINGS_KEY, JSON.stringify(AS)); 
 let _pollTimer = null, _logTimer = null;
 
 let t0=0; // LLM server uptime origin (set when server detected running)
-let ttftH=[],prevReq=0,peakTps=0,reqHist=[];
+let ttftH=[],prevReq=0,peakTps=0,reqHist=JSON.parse(localStorage.getItem('nerv-req-hist')||'[]');
 let alertCount=0,alertDebounce={},alertLog=[];
 const peaks={cpu:0,gpuUtil:0,gpuTemp:0,gpuPow:0,vram:0,ram:0,tps:0};
 let slotStartTime=null,lastTokenCount=0,lastTokenTime=Date.now();
@@ -1106,6 +1107,12 @@ async function _doUpdate(){
     n_ctx: rawSl.n_ctx || _CTX,
   };
 
+  // ── SERVER-SIDE THINK TOKEN TRACKING ──
+  // Detect when slot think_tokens resets (new request) → accumulate previous
+  const curSlotThink = sl.think_tokens;
+  if (curSlotThink < _prevSlotThink) _slotThinkAccum += _prevSlotThink;
+  _prevSlotThink = curSlotThink;
+
   // ── SYSTEM METRICS (independent of LLM) ──
   if (sys) {
     if (!coresBuilt && sys.cpu.cores.length > 0) {
@@ -1118,12 +1125,12 @@ async function _doUpdate(){
     if (sys.gpu && sys.gpu.vramTotal) {
       _VMAX = sys.gpu.vramTotal;
       const gt = document.getElementById('title-gpu');
-      if (gt && !gt._set) { gt.textContent = '┤ GPU · ' + (_VMAX).toFixed(0) + ' GB ├'; gt._set = true; }
+      if (gt && !gt._set) { gt.textContent = '┤ ' + (sys.gpu.name || 'GPU') + ' ├'; gt._set = true; }
     }
     if (sys.mem && sys.mem.total) {
       _RMAX = sys.mem.total;
       const rt = document.getElementById('title-ram');
-      if (rt && !rt._set) { rt.textContent = '┤ RAM · ' + sys.mem.total.toFixed(0) + ' GB ├'; rt._set = true; }
+      if (rt && !rt._set) { rt.textContent = '┤ ' + (sys.mem.label || 'RAM') + ' · ' + sys.mem.total.toFixed(0) + ' GB ├'; rt._set = true; }
     }
     if (sys.procs) renderProcs(sys.procs);
 
@@ -1209,10 +1216,10 @@ async function _doUpdate(){
   const sbLlm=document.getElementById('sb-llm');
   if(sbLlm){sbLlm.textContent=m._run?'● GENERATING':'● ONLINE';sbLlm.style.color=m._run?'var(--or)':'var(--gr)';}
 
-  // ── CONTEXT (use Prometheus totals + client-side thinking split) ──
+  // ── CONTEXT (use Prometheus totals + server-side thinking from /slots) ──
   const totalUsed = m.prompt_toks + m.gen_toks;
-  const thkT = _sessionThinkToks;
-  const outT = _sessionContentToks || (m.gen_toks - thkT);
+  const thkT = _slotThinkAccum + curSlotThink;
+  const outT = Math.max(0, m.gen_toks - thkT);
   const promT = m.prompt_toks;
   const freeT = Math.max(0, _CTX - totalUsed);
   const ctxp = Math.min(100, totalUsed / _CTX * 100);
@@ -1228,7 +1235,7 @@ async function _doUpdate(){
   setT('v-think', thkT > 0 ? thkT.toLocaleString() : '--');
   setT('v-ctxo', (outT > 0 ? outT : m.gen_toks).toLocaleString());
 
-  // ── TOKEN TOTALS (Prometheus + client thinking split) ──
+  // ── TOKEN TOTALS (Prometheus + server thinking split) ──
   const allT = promT + thkT + Math.max(0, outT);
 
   setG('g-tprom', allT > 0 ? promT / allT * 100 : 0, 'var(--cy)'); setT('v-tprom', fmtTok(promT));
@@ -1633,6 +1640,7 @@ let chatBusy = false;
 let _chatAbort = null;
 let _lastChatTimings = null; // captured from SSE stream for TTFT/History
 let _sessionThinkToks = 0, _sessionContentToks = 0; // client-side thinking token tracking
+let _slotThinkAccum = 0, _prevSlotThink = 0; // server-side thinking token accumulator
 let _thinkHidden = false;
 function toggleThinkVisibility() {
   _thinkHidden = !_thinkHidden;
@@ -1801,6 +1809,7 @@ async function chatSend() {
       const totVal = totMs > 0 ? (totMs/1000).toFixed(1) + 's' : '--';
       reqHist.unshift({now, prompt:promptPreview, thk:thkToks, out:outToks, tpsVal, ttftVal, totVal});
       if (reqHist.length > 20) reqHist.pop();
+      localStorage.setItem('nerv-req-hist', JSON.stringify(reqHist));
       _renderHistory();
       if (t.prompt_ms > 0) ttftH.push(t.prompt_ms);
     }
