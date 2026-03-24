@@ -273,8 +273,11 @@ if(window.__module){module=window.__module;if(window.__exports)exports=window.__
   <!-- mini topbar -->
   <div style="display:flex;align-items:center;justify-content:space-between;padding:3px 8px;background:var(--bg);border-bottom:1px solid var(--bdr);" id="mini-drag-bar">
     <span id="mini-model" style="font-size:9px;color:var(--fg2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;">LLM MONITOR</span>
-    <div style="display:flex;gap:5px;align-items:center;flex-shrink:0;">
+    <div style="display:flex;gap:5px;align-items:center;flex-shrink:0;-webkit-app-region:no-drag;">
       <span id="mini-status" style="font-size:9px;color:var(--gr);font-weight:700;">● --</span>
+      <button class="win-btn" onclick="toggleMini()" title="Back to full" style="color:var(--cy);border-color:rgba(142,192,124,.35);width:auto;padding:0 4px;font-size:7px;">BACK</button>
+      <button class="win-btn win-min" onclick="window.api.minimizeWindow()" title="Minimize" style="width:12px;height:12px;font-size:7px;">&#9472;</button>
+      <button class="win-btn win-cls" onclick="window.api.closeWindow()" title="Close" style="width:12px;height:12px;font-size:7px;">&#10005;</button>
     </div>
   </div>
 
@@ -2125,6 +2128,7 @@ let _savedBounds = null;
 
 async function toggleMini() {
   const hud = document.getElementById('mini-hud');
+  const topbar = document.getElementById('topbar');
   const main = document.getElementById('main');
   const statusbar = document.getElementById('statusbar');
 
@@ -2133,7 +2137,8 @@ async function toggleMini() {
   if (_miniOpen) {
     // Save current window size
     try { _savedBounds = await window.api.getBounds(); } catch {}
-    // Hide main, show hud inline below topbar
+    // Hide everything except HUD
+    topbar.style.display = 'none';
     main.style.display = 'none';
     statusbar.style.display = 'none';
     hud.style.display = 'flex';
@@ -2141,13 +2146,12 @@ async function toggleMini() {
     hud.style.border = 'none';
     hud.style.minWidth = '0';
     hud.style.webkitAppRegion = 'drag';
-    // Make buttons/inputs clickable inside drag region
     hud.querySelectorAll('button,input,select').forEach(el => el.style.webkitAppRegion = 'no-drag');
-    // Resize to fit content + always on top
-    const wx = (_savedBounds?.x||100) + (_savedBounds?.width||1400) - 290;
+    // Resize to fit content
     await new Promise(r => setTimeout(r, 50));
-    const h = 22 + hud.scrollHeight + 2;
-    try { await window.api.setBounds({width:290, height:h, x:wx, y:_savedBounds?.y||100}); } catch {}
+    const wx = (_savedBounds?.x||100) + (_savedBounds?.width||1400) - 320;
+    const h = hud.scrollHeight + 2;
+    try { await window.api.setBounds({width:320, height:h, x:wx, y:_savedBounds?.y||100}); } catch {}
     try { await window.api.setOnTop(true); } catch {}
   } else {
     // Restore
@@ -2156,6 +2160,7 @@ async function toggleMini() {
     hud.style.border = '1px solid var(--bdr)';
     hud.style.minWidth = '260px';
     hud.style.webkitAppRegion = '';
+    topbar.style.display = 'flex';
     main.style.display = 'flex';
     statusbar.style.display = 'flex';
     try { await window.api.setOnTop(false); } catch {}
