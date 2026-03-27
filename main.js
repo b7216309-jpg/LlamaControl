@@ -19,14 +19,19 @@ const DEFAULT_CONFIG = {
   version: 2,
   llamaServerExe: process.platform === "win32" ? "llama-server.exe" : "llama-server",
   modelsDirectory: path.join(os.homedir(), "Models"),
-  activeProfile: "Thinking General",
+  activeProfile: "HERETIC Thinking",
   profiles: {
-    // ── Profile 1: Thinking General ──────────────────────────────────
+    // ═══════════════════════════════════════════════════════════════════
+    //  DavidAU HERETIC — 4 presets from model card
+    //  Source: huggingface.co/DavidAU/Qwen3.5-9B-Claude-4.6-OS-Auto-Variable-HERETIC-UNCENSORED-THINKING-MAX-NEOCODE-Imatrix-GGUF
+    //  Note: DavidAU recommends smoothing_factor 1.5 (not yet in llama-server API)
+    // ═══════════════════════════════════════════════════════════════════
+
+    // ── Profile 1: HERETIC Thinking ─────────────────────────────────
     // Usage: Conversation, analyse, raisonnement, taches generales
-    // Source: DavidAU model card "Thinking Mode General Tasks" + Qwen official
-    // Optimized: 80k context, KV cache mixte q8/q4, sampling ajuste long contexte
-    "Thinking General": {
-      name: "Thinking General",
+    // Source: DavidAU "Thinking Mode General Tasks" — temp 1.0, presence 1.5
+    "HERETIC Thinking": {
+      name: "HERETIC Thinking",
       modelPath: MODEL_PATH,
       alias: "Qwen3.5-9B-DavidAU-HERETIC",
       chatTemplateFile: TEMPLATE_PATH,
@@ -35,8 +40,8 @@ const DEFAULT_CONFIG = {
       performance: { flashAttn: true, cacheTypeK: "q8_0", cacheTypeV: "q8_0", cudaGraphOpt: true, cudaForceCublasCompute16F: true },
       reasoning: { enabled: true, format: "deepseek" },
       chat: {
-        maxTokens: 81920, temperature: 1.0, topP: 0.95, topK: 20, minP: 0.05,
-        presencePenalty: 0.9, repetitionPenalty: 1.0,
+        maxTokens: 81920, temperature: 1.0, topP: 0.95, topK: 20, minP: 0.0,
+        presencePenalty: 1.5, repetitionPenalty: 1.0,
         seed: -1, repeatLastN: 256, frequencyPenalty: 0, nPredict: -1,
         samplers: ["top_k", "tfs_z", "typical_p", "top_p", "min_p", "temperature"],
         stop: ["<|im_end|>", "<|endoftext|>"],
@@ -44,12 +49,11 @@ const DEFAULT_CONFIG = {
       },
       flags: { noContextShift: true, extraArgs: "", contBatching: true, mlock: true },
     },
-    // ── Profile 2: Thinking Code ─────────────────────────────────────
+    // ── Profile 2: HERETIC Code ────────────────────────────────────
     // Usage: Coding precis, WebDev, generation de code structuree
-    // Source: DavidAU "Thinking Mode Precise Coding" - temp basse, pas de presence penalty
-    // Optimized: 80k context, KV cache mixte q8/q4, sampling ajuste long contexte
-    "Thinking Code": {
-      name: "Thinking Code",
+    // Source: DavidAU "Thinking Mode Precise Coding" — temp 0.6, presence 0.0
+    "HERETIC Code": {
+      name: "HERETIC Code",
       modelPath: MODEL_PATH,
       alias: "Qwen3.5-9B-DavidAU-HERETIC",
       chatTemplateFile: TEMPLATE_PATH,
@@ -58,7 +62,7 @@ const DEFAULT_CONFIG = {
       performance: { flashAttn: true, cacheTypeK: "q8_0", cacheTypeV: "q8_0", cudaGraphOpt: true, cudaForceCublasCompute16F: true },
       reasoning: { enabled: true, format: "deepseek" },
       chat: {
-        maxTokens: 81920, temperature: 0.6, topP: 0.95, topK: 20, minP: 0.05,
+        maxTokens: 81920, temperature: 0.6, topP: 0.95, topK: 20, minP: 0.0,
         presencePenalty: 0.0, repetitionPenalty: 1.0,
         seed: -1, repeatLastN: 256, frequencyPenalty: 0, nPredict: -1,
         samplers: ["top_k", "tfs_z", "typical_p", "top_p", "min_p", "temperature"],
@@ -67,12 +71,11 @@ const DEFAULT_CONFIG = {
       },
       flags: { noContextShift: true, extraArgs: "", contBatching: true, mlock: true },
     },
-    // ── Profile 3: Fast Chat ─────────────────────────────────────────
-    // Usage: Chat rapide, ecriture creative, roleplay - thinking OFF
-    // Source: Qwen official "Non-Thinking General Tasks" - top_p serre, reponses rapides
-    // Optimized: 80k context, KV cache mixte q8/q4, sampling ajuste long contexte
-    "Fast Chat": {
-      name: "Fast Chat",
+    // ── Profile 3: HERETIC Fast ────────────────────────────────────
+    // Usage: Chat rapide, reponses directes — thinking OFF
+    // Source: DavidAU "Instruct/Non-Thinking General Tasks" — temp 0.7, presence 1.5
+    "HERETIC Fast": {
+      name: "HERETIC Fast",
       modelPath: MODEL_PATH,
       alias: "Qwen3.5-9B-DavidAU-HERETIC",
       chatTemplateFile: TEMPLATE_PATH,
@@ -81,8 +84,83 @@ const DEFAULT_CONFIG = {
       performance: { flashAttn: true, cacheTypeK: "q8_0", cacheTypeV: "q8_0", cudaGraphOpt: true, cudaForceCublasCompute16F: true },
       reasoning: { enabled: false, format: "deepseek" },
       chat: {
-        maxTokens: 8192, temperature: 0.7, topP: 0.8, topK: 20, minP: 0.05,
-        presencePenalty: 0.9, repetitionPenalty: 1.0,
+        maxTokens: 8192, temperature: 0.7, topP: 0.8, topK: 20, minP: 0.0,
+        presencePenalty: 1.5, repetitionPenalty: 1.0,
+        seed: -1, repeatLastN: 256, frequencyPenalty: 0, nPredict: -1,
+        samplers: ["top_k", "tfs_z", "typical_p", "top_p", "min_p", "temperature"],
+        stop: ["<|im_end|>", "<|endoftext|>"],
+        systemPrompt: "",
+      },
+      flags: { noContextShift: true, extraArgs: "", contBatching: true, mlock: true },
+    },
+    // ── Profile 4: HERETIC Instruct ─────────────────────────────────
+    // Usage: Raisonnement sans thinking, logique, maths, deduction — thinking OFF
+    // Source: DavidAU "Instruct/Non-Thinking Reasoning Tasks" — temp 1.0, topP 1.0, presence 2.0
+    // Note: presence 2.0 peut causer du language mixing sur longues generations
+    "HERETIC Instruct": {
+      name: "HERETIC Instruct",
+      modelPath: MODEL_PATH,
+      alias: "Qwen3.5-9B-DavidAU-HERETIC",
+      chatTemplateFile: TEMPLATE_PATH,
+      mmprojFile: MMPROJ_PATH,
+      server: { host: "0.0.0.0", port: 8080, ctxSize: 81920, nGpuLayers: 99, threads: 4, nBatch: 4096 },
+      performance: { flashAttn: true, cacheTypeK: "q8_0", cacheTypeV: "q8_0", cudaGraphOpt: true, cudaForceCublasCompute16F: true },
+      reasoning: { enabled: false, format: "deepseek" },
+      chat: {
+        maxTokens: 81920, temperature: 1.0, topP: 1.0, topK: 40, minP: 0.0,
+        presencePenalty: 2.0, repetitionPenalty: 1.0,
+        seed: -1, repeatLastN: 256, frequencyPenalty: 0, nPredict: -1,
+        samplers: ["top_k", "tfs_z", "typical_p", "top_p", "min_p", "temperature"],
+        stop: ["<|im_end|>", "<|endoftext|>"],
+        systemPrompt: "",
+      },
+      flags: { noContextShift: true, extraArgs: "", contBatching: true, mlock: true },
+    },
+
+    // ═══════════════════════════════════════════════════════════════════
+    //  HauhauCS Aggressive — Qwen3.5-9B abliterated uncensor
+    //  Source: huggingface.co/HauhauCS/Qwen3.5-9B-Uncensored-HauhauCS-Aggressive
+    //  Sampling: Qwen3.5 official presets (same base model)
+    //  Note: pas de jinja template externe, pas de mmproj (texte only)
+    // ═══════════════════════════════════════════════════════════════════
+
+    // ── Profile 5: HauhauCS Thinking ─────────────────────────────────
+    // Usage: Taches generales avec raisonnement, modele uncensored
+    // Source: Qwen3.5 official "Thinking Mode General Tasks"
+    "HauhauCS Thinking": {
+      name: "HauhauCS Thinking",
+      modelPath: MODEL_PATH,
+      alias: "Qwen3.5-9B-HauhauCS-Aggressive",
+      chatTemplateFile: "",
+      mmprojFile: "",
+      server: { host: "0.0.0.0", port: 8080, ctxSize: 81920, nGpuLayers: 99, threads: 4, nBatch: 4096 },
+      performance: { flashAttn: true, cacheTypeK: "q8_0", cacheTypeV: "q8_0", cudaGraphOpt: true, cudaForceCublasCompute16F: true },
+      reasoning: { enabled: true, format: "deepseek" },
+      chat: {
+        maxTokens: 81920, temperature: 1.0, topP: 0.95, topK: 20, minP: 0.0,
+        presencePenalty: 1.5, repetitionPenalty: 1.0,
+        seed: -1, repeatLastN: 256, frequencyPenalty: 0, nPredict: -1,
+        samplers: ["top_k", "tfs_z", "typical_p", "top_p", "min_p", "temperature"],
+        stop: ["<|im_end|>", "<|endoftext|>"],
+        systemPrompt: "",
+      },
+      flags: { noContextShift: true, extraArgs: "", contBatching: true, mlock: true },
+    },
+    // ── Profile 6: HauhauCS Fast ─────────────────────────────────────
+    // Usage: Chat rapide uncensored, reponses directes — thinking OFF
+    // Source: Qwen3.5 official "Non-Thinking General Tasks"
+    "HauhauCS Fast": {
+      name: "HauhauCS Fast",
+      modelPath: MODEL_PATH,
+      alias: "Qwen3.5-9B-HauhauCS-Aggressive",
+      chatTemplateFile: "",
+      mmprojFile: "",
+      server: { host: "0.0.0.0", port: 8080, ctxSize: 81920, nGpuLayers: 99, threads: 4, nBatch: 4096 },
+      performance: { flashAttn: true, cacheTypeK: "q8_0", cacheTypeV: "q8_0", cudaGraphOpt: true, cudaForceCublasCompute16F: true },
+      reasoning: { enabled: false, format: "deepseek" },
+      chat: {
+        maxTokens: 8192, temperature: 0.7, topP: 0.8, topK: 20, minP: 0.0,
+        presencePenalty: 1.5, repetitionPenalty: 1.0,
         seed: -1, repeatLastN: 256, frequencyPenalty: 0, nPredict: -1,
         samplers: ["top_k", "tfs_z", "typical_p", "top_p", "min_p", "temperature"],
         stop: ["<|im_end|>", "<|endoftext|>"],
@@ -96,20 +174,53 @@ const DEFAULT_CONFIG = {
 let config = null;
 let configPath = null;
 
+function cloneValue(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
+function mergeConfigValue(base, override) {
+  if (override === undefined) return cloneValue(base);
+  if (Array.isArray(base)) return Array.isArray(override) ? [...override] : cloneValue(base);
+  if (base && typeof base === "object" && !Array.isArray(base)) {
+    const overrideObj = override && typeof override === "object" && !Array.isArray(override) ? override : {};
+    const result = {};
+    const keys = new Set([...Object.keys(base), ...Object.keys(overrideObj)]);
+    for (const key of keys) {
+      result[key] = mergeConfigValue(base[key], overrideObj[key]);
+    }
+    return result;
+  }
+  if (override && typeof override === "object") return cloneValue(override);
+  return override;
+}
+
+function normalizeConfig(raw) {
+  const cfg = mergeConfigValue(DEFAULT_CONFIG, raw || {});
+  if (!cfg.profiles || typeof cfg.profiles !== "object") {
+    cfg.profiles = cloneValue(DEFAULT_CONFIG.profiles);
+  }
+  if (!cfg.profiles[cfg.activeProfile]) {
+    cfg.activeProfile = Object.keys(cfg.profiles)[0] || DEFAULT_CONFIG.activeProfile;
+  }
+  return cfg;
+}
+
 function loadConfig() {
   try {
     if (fs.existsSync(configPath)) {
       const raw = JSON.parse(fs.readFileSync(configPath, "utf-8"));
-      return { ...JSON.parse(JSON.stringify(DEFAULT_CONFIG)), ...raw, profiles: { ...DEFAULT_CONFIG.profiles, ...raw.profiles } };
+      return normalizeConfig(raw);
     }
   } catch {}
-  const cfg = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
+  const cfg = normalizeConfig(DEFAULT_CONFIG);
   saveConfig(cfg);
   return cfg;
 }
 
 function saveConfig(cfg) {
-  fs.writeFileSync(configPath, JSON.stringify(cfg, null, 2), "utf-8");
+  const normalized = normalizeConfig(cfg);
+  fs.writeFileSync(configPath, JSON.stringify(normalized, null, 2), "utf-8");
+  return normalized;
 }
 
 function getActiveProfile() {
@@ -166,6 +277,7 @@ function buildServerArgs() {
   if (p.reasoning.enabled) {
     args.push("--reasoning-format", p.reasoning.format);
   }
+  if (p.chat.nPredict && p.chat.nPredict > 0) args.push("--n-predict", String(p.chat.nPredict));
   if (p.flags.noContextShift) args.push("--no-context-shift");
   if (p.flags.contBatching) args.push("--cont-batching");
   if (p.flags.mlock) args.push("--mlock");
@@ -235,19 +347,32 @@ function startCompanion() {
   return new Promise((resolve) => {
     if (companionProcess) { resolve(); return; }
     const pyScript = path.join(__dirname, "companion.py");
+    let settled = false;
+    const finish = () => {
+      if (!settled) {
+        settled = true;
+        resolve();
+      }
+    };
     try {
       const child = spawn("python", [pyScript], {
         detached: true,
         stdio: "ignore",
       });
-      child.on("error", () => { companionProcess = null; });
+      child.once("error", () => {
+        companionProcess = null;
+        finish();
+      });
+      child.once("exit", () => {
+        if (companionProcess === child) companionProcess = null;
+      });
       child.unref();
       companionProcess = child;
       // Give it a moment to start
-      setTimeout(() => resolve(), 500);
+      setTimeout(finish, 500);
     } catch (e) {
       companionProcess = null;
-      resolve();
+      finish();
     }
   });
 }
@@ -488,8 +613,7 @@ ipcMain.handle("get-config", async () => {
 });
 
 ipcMain.handle("save-config", async (event, newConfig) => {
-  config = newConfig;
-  saveConfig(config);
+  config = saveConfig(newConfig);
   return { ok: true };
 });
 
@@ -508,14 +632,16 @@ ipcMain.handle("scan-models", async () => {
         const stats = fs.statSync(fullPath);
         const parentDir = path.dirname(fullPath);
         const parentFiles = fs.readdirSync(parentDir);
-        const chatTemplate = parentFiles.find((f) => /^chat_template.*\.jinja$/.test(f));
+        const chatTemplate = parentFiles.find((f) => /^chat_template.*\.jinja$/.test(f) && !/instruct/i.test(f));
+        const chatTemplateInstruct = parentFiles.find((f) => /^chat_template.*instruct.*\.jinja$/i.test(f));
         const mmproj = parentFiles.find((f) => /^mmproj.*\.gguf$/i.test(f));
         results.push({
           path: fullPath,
           name: entry.name.replace(".gguf", ""),
           sizeBytes: stats.size,
           sizeDisplay: (stats.size / (1024 * 1024 * 1024)).toFixed(1) + " GB",
-          chatTemplateFile: chatTemplate ? path.join(parentDir, chatTemplate) : null,
+          chatTemplateFile: chatTemplate ? path.join(parentDir, chatTemplate) : (chatTemplateInstruct ? path.join(parentDir, chatTemplateInstruct) : null),
+          chatTemplateInstructFile: chatTemplateInstruct ? path.join(parentDir, chatTemplateInstruct) : null,
           mmprojFile: mmproj ? path.join(parentDir, mmproj) : null,
           directory: parentDir,
         });
@@ -670,21 +796,25 @@ app.whenReady().then(() => {
     icon: fs.existsSync(path.join(__dirname, "icon.png")) ? path.join(__dirname, "icon.png") : undefined,
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
+      contextIsolation: true,
+      nodeIntegration: false,
+      webSecurity: true,
     },
   });
   win.setMenuBarVisibility(false);
+  win.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
   win.loadFile("index.html");
 
   startCompanion();
 });
 
 app.on("window-all-closed", async () => {
-  Object.values(terminals).forEach(t => { try { t.kill(); } catch {} });
+  Object.values(terminals).forEach(t => { try { t.handle.kill(); } catch {} });
   await stopCompanion();
   app.quit();
 });
 
 app.on("before-quit", async () => {
-  Object.values(terminals).forEach(t => { try { t.kill(); } catch {} });
+  Object.values(terminals).forEach(t => { try { t.handle.kill(); } catch {} });
   await stopCompanion();
 });
