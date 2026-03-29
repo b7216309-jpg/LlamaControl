@@ -232,6 +232,9 @@ input[type=number]{-moz-appearance:textfield;}
 .tab-btn{font-size:10px;letter-spacing:1px;transition:color .1s;}
 .tab-btn:hover{color:var(--wh)!important;}
 .tab-btn.active{color:var(--cy)!important;font-weight:700;}
+.term-panel{display:none;flex:1;min-height:0;min-width:0;overflow:hidden;margin-top:13px;}
+.term-host{display:flex;flex:1;min-height:0;min-width:0;width:100%;height:100%;padding:4px 10px 6px;}
+.term-host .xterm{flex:1;min-height:0;min-width:0;width:100%;height:100%;}
 </style>
 <link rel="stylesheet" href="node_modules/@xterm/xterm/css/xterm.css">
 <script>
@@ -257,6 +260,7 @@ if(window.__module){module=window.__module;if(window.__exports)exports=window.__
     <button class="btn-llm btn-start" onclick="llmAction('start')" title="Start llama-server">start</button>
     <button class="btn-llm btn-stop"  onclick="llmAction('stop')"  title="Stop llama-server">stop</button>
     <button class="btn-llm btn-reboot" onclick="llmAction('reboot')" title="Restart llama-server">reboot</button>
+    <button class="btn-llm btn-stop" onclick="killAllSlots()" title="Erase all slots KV cache &amp; cancel generations">kill slots</button>
     <button class="win-btn" onclick="toggleAppSettings(event)" title="App settings" style="color:var(--fg2);border-color:var(--bdr);width:auto;padding:0 4px;font-size:9px;margin-left:4px;">&#9881;</button>
     <div class="tb-sep"></div>
     <button class="win-btn" onclick="toggleMini()" title="Mini mode" style="color:var(--cy);border-color:rgba(142,192,124,.35);width:auto;padding:0 5px;font-size:8px;letter-spacing:1px;">HUD</button>
@@ -601,12 +605,12 @@ if(window.__module){module=window.__module;if(window.__exports)exports=window.__
       <div style="display:flex;justify-content:flex-end;padding:0 6px;flex-shrink:0;">
         <button id="btn-think-toggle" onclick="toggleThinkVisibility()" style="background:none;border:1px solid var(--bdr);color:var(--am);font-family:var(--f);font-size:8px;cursor:pointer;padding:0 5px;line-height:1.3;">think:on</button>
       </div>
-      <div id="chat-msgs" style="flex:1;overflow-y:auto;overflow-x:hidden;padding:4px 10px;display:flex;flex-direction:column;gap:4px;min-height:0;"></div>
+      <div id="chat-msgs" style="flex:1;overflow-y:auto;overflow-x:hidden;padding:4px 10px;display:flex;flex-direction:column;justify-content:flex-end;gap:4px;min-height:0;"></div>
     </div>
     <!-- TERMINAL PANEL -->
-    <div id="panel-term" style="display:none;flex:1;margin-top:13px;min-height:0;overflow:hidden;"></div>
+    <div id="panel-term" class="term-panel"></div>
     <!-- WSL2 PANEL -->
-    <div id="panel-wsl" style="display:none;flex:1;margin-top:13px;min-height:0;overflow:hidden;"></div>
+    <div id="panel-wsl" class="term-panel"></div>
   </div>
   </div><!-- /llm-boxes -->
 

@@ -12,8 +12,12 @@ const LOG_FILE = path.join(require("os").tmpdir(), "llama-server.log");
 // ── Config Management ────────────────────────────────────────────────
 
 const MODEL_PATH = "";
-const TEMPLATE_PATH = "";
+const TEMPLATE_THINK = "";    // thinking template (or empty = use GGUF embedded)
+const TEMPLATE_INSTRUCT = ""; // instruct template with enable_thinking=false
 const MMPROJ_PATH = "";
+
+// llama.cpp default sampler chain — what Qwen3.5 presets are designed for
+const QWEN_SAMPLERS = ["penalties", "dry", "top_k", "typ_p", "top_p", "min_p", "xtc", "temperature"];
 
 const DEFAULT_CONFIG = {
   version: 2,
@@ -25,6 +29,7 @@ const DEFAULT_CONFIG = {
     //  DavidAU HERETIC — 4 presets from model card
     //  Source: huggingface.co/DavidAU/Qwen3.5-9B-Claude-4.6-OS-Auto-Variable-HERETIC-UNCENSORED-THINKING-MAX-NEOCODE-Imatrix-GGUF
     //  Note: DavidAU recommends smoothing_factor 1.5 (not yet in llama-server API)
+    //  Template: custom Jinja embedded in GGUF (thinking). Use instruct .jinja for non-thinking.
     // ═══════════════════════════════════════════════════════════════════
 
     // ── Profile 1: HERETIC Thinking ─────────────────────────────────
@@ -34,16 +39,16 @@ const DEFAULT_CONFIG = {
       name: "HERETIC Thinking",
       modelPath: MODEL_PATH,
       alias: "Qwen3.5-9B-DavidAU-HERETIC",
-      chatTemplateFile: TEMPLATE_PATH,
+      chatTemplateFile: TEMPLATE_THINK,
       mmprojFile: MMPROJ_PATH,
-      server: { host: "0.0.0.0", port: 8080, ctxSize: 81920, nGpuLayers: 99, threads: 4, nBatch: 4096 },
+      server: { host: "0.0.0.0", port: 8080, ctxSize: 81920, nGpuLayers: 99, threads: 4, nBatch: 4096, parallel: 1 },
       performance: { flashAttn: true, cacheTypeK: "q8_0", cacheTypeV: "q8_0", cudaGraphOpt: true, cudaForceCublasCompute16F: true },
       reasoning: { enabled: true, format: "deepseek" },
       chat: {
         maxTokens: 81920, temperature: 1.0, topP: 0.95, topK: 20, minP: 0.0,
         presencePenalty: 1.5, repetitionPenalty: 1.0,
-        seed: -1, repeatLastN: 256, frequencyPenalty: 0, nPredict: -1,
-        samplers: ["top_k", "tfs_z", "typical_p", "top_p", "min_p", "temperature"],
+        seed: -1, repeatLastN: 64, frequencyPenalty: 0, nPredict: -1,
+        samplers: QWEN_SAMPLERS,
         stop: ["<|im_end|>", "<|endoftext|>"],
         systemPrompt: "",
       },
@@ -56,16 +61,16 @@ const DEFAULT_CONFIG = {
       name: "HERETIC Code",
       modelPath: MODEL_PATH,
       alias: "Qwen3.5-9B-DavidAU-HERETIC",
-      chatTemplateFile: TEMPLATE_PATH,
+      chatTemplateFile: TEMPLATE_THINK,
       mmprojFile: MMPROJ_PATH,
-      server: { host: "0.0.0.0", port: 8080, ctxSize: 81920, nGpuLayers: 99, threads: 4, nBatch: 4096 },
+      server: { host: "0.0.0.0", port: 8080, ctxSize: 81920, nGpuLayers: 99, threads: 4, nBatch: 4096, parallel: 1 },
       performance: { flashAttn: true, cacheTypeK: "q8_0", cacheTypeV: "q8_0", cudaGraphOpt: true, cudaForceCublasCompute16F: true },
       reasoning: { enabled: true, format: "deepseek" },
       chat: {
         maxTokens: 81920, temperature: 0.6, topP: 0.95, topK: 20, minP: 0.0,
         presencePenalty: 0.0, repetitionPenalty: 1.0,
-        seed: -1, repeatLastN: 256, frequencyPenalty: 0, nPredict: -1,
-        samplers: ["top_k", "tfs_z", "typical_p", "top_p", "min_p", "temperature"],
+        seed: -1, repeatLastN: 64, frequencyPenalty: 0, nPredict: -1,
+        samplers: QWEN_SAMPLERS,
         stop: ["<|im_end|>", "<|endoftext|>"],
         systemPrompt: "",
       },
@@ -78,16 +83,16 @@ const DEFAULT_CONFIG = {
       name: "HERETIC Fast",
       modelPath: MODEL_PATH,
       alias: "Qwen3.5-9B-DavidAU-HERETIC",
-      chatTemplateFile: TEMPLATE_PATH,
+      chatTemplateFile: TEMPLATE_INSTRUCT,
       mmprojFile: MMPROJ_PATH,
-      server: { host: "0.0.0.0", port: 8080, ctxSize: 81920, nGpuLayers: 99, threads: 4, nBatch: 4096 },
+      server: { host: "0.0.0.0", port: 8080, ctxSize: 81920, nGpuLayers: 99, threads: 4, nBatch: 4096, parallel: 1 },
       performance: { flashAttn: true, cacheTypeK: "q8_0", cacheTypeV: "q8_0", cudaGraphOpt: true, cudaForceCublasCompute16F: true },
       reasoning: { enabled: false, format: "deepseek" },
       chat: {
         maxTokens: 8192, temperature: 0.7, topP: 0.8, topK: 20, minP: 0.0,
         presencePenalty: 1.5, repetitionPenalty: 1.0,
-        seed: -1, repeatLastN: 256, frequencyPenalty: 0, nPredict: -1,
-        samplers: ["top_k", "tfs_z", "typical_p", "top_p", "min_p", "temperature"],
+        seed: -1, repeatLastN: 64, frequencyPenalty: 0, nPredict: -1,
+        samplers: QWEN_SAMPLERS,
         stop: ["<|im_end|>", "<|endoftext|>"],
         systemPrompt: "",
       },
@@ -101,16 +106,16 @@ const DEFAULT_CONFIG = {
       name: "HERETIC Instruct",
       modelPath: MODEL_PATH,
       alias: "Qwen3.5-9B-DavidAU-HERETIC",
-      chatTemplateFile: TEMPLATE_PATH,
+      chatTemplateFile: TEMPLATE_INSTRUCT,
       mmprojFile: MMPROJ_PATH,
-      server: { host: "0.0.0.0", port: 8080, ctxSize: 81920, nGpuLayers: 99, threads: 4, nBatch: 4096 },
+      server: { host: "0.0.0.0", port: 8080, ctxSize: 81920, nGpuLayers: 99, threads: 4, nBatch: 4096, parallel: 1 },
       performance: { flashAttn: true, cacheTypeK: "q8_0", cacheTypeV: "q8_0", cudaGraphOpt: true, cudaForceCublasCompute16F: true },
       reasoning: { enabled: false, format: "deepseek" },
       chat: {
         maxTokens: 81920, temperature: 1.0, topP: 1.0, topK: 40, minP: 0.0,
         presencePenalty: 2.0, repetitionPenalty: 1.0,
-        seed: -1, repeatLastN: 256, frequencyPenalty: 0, nPredict: -1,
-        samplers: ["top_k", "tfs_z", "typical_p", "top_p", "min_p", "temperature"],
+        seed: -1, repeatLastN: 64, frequencyPenalty: 0, nPredict: -1,
+        samplers: QWEN_SAMPLERS,
         stop: ["<|im_end|>", "<|endoftext|>"],
         systemPrompt: "",
       },
@@ -121,26 +126,27 @@ const DEFAULT_CONFIG = {
     //  HauhauCS Aggressive — Qwen3.5-9B abliterated uncensor
     //  Source: huggingface.co/HauhauCS/Qwen3.5-9B-Uncensored-HauhauCS-Aggressive
     //  Sampling: Qwen3.5 official presets (same base model)
-    //  Note: pas de jinja template externe, pas de mmproj (texte only)
+    //  Template: standard Qwen3.5 Jinja embedded in GGUF. Use instruct .jinja for non-thinking.
+    //  Note: text only — no mmproj needed
     // ═══════════════════════════════════════════════════════════════════
 
     // ── Profile 5: HauhauCS Thinking ─────────────────────────────────
     // Usage: Taches generales avec raisonnement, modele uncensored
-    // Source: Qwen3.5 official "Thinking Mode General Tasks"
+    // Source: Qwen3.5 official "Thinking Mode General Tasks" — temp 1.0, presence 1.5
     "HauhauCS Thinking": {
       name: "HauhauCS Thinking",
       modelPath: MODEL_PATH,
       alias: "Qwen3.5-9B-HauhauCS-Aggressive",
       chatTemplateFile: "",
       mmprojFile: "",
-      server: { host: "0.0.0.0", port: 8080, ctxSize: 81920, nGpuLayers: 99, threads: 4, nBatch: 4096 },
+      server: { host: "0.0.0.0", port: 8080, ctxSize: 81920, nGpuLayers: 99, threads: 4, nBatch: 4096, parallel: 1 },
       performance: { flashAttn: true, cacheTypeK: "q8_0", cacheTypeV: "q8_0", cudaGraphOpt: true, cudaForceCublasCompute16F: true },
       reasoning: { enabled: true, format: "deepseek" },
       chat: {
         maxTokens: 81920, temperature: 1.0, topP: 0.95, topK: 20, minP: 0.0,
         presencePenalty: 1.5, repetitionPenalty: 1.0,
-        seed: -1, repeatLastN: 256, frequencyPenalty: 0, nPredict: -1,
-        samplers: ["top_k", "tfs_z", "typical_p", "top_p", "min_p", "temperature"],
+        seed: -1, repeatLastN: 64, frequencyPenalty: 0, nPredict: -1,
+        samplers: QWEN_SAMPLERS,
         stop: ["<|im_end|>", "<|endoftext|>"],
         systemPrompt: "",
       },
@@ -148,21 +154,21 @@ const DEFAULT_CONFIG = {
     },
     // ── Profile 6: HauhauCS Fast ─────────────────────────────────────
     // Usage: Chat rapide uncensored, reponses directes — thinking OFF
-    // Source: Qwen3.5 official "Non-Thinking General Tasks"
+    // Source: Qwen3.5 official "Non-Thinking General Tasks" — temp 0.7, presence 1.5
     "HauhauCS Fast": {
       name: "HauhauCS Fast",
       modelPath: MODEL_PATH,
       alias: "Qwen3.5-9B-HauhauCS-Aggressive",
-      chatTemplateFile: "",
+      chatTemplateFile: TEMPLATE_INSTRUCT,
       mmprojFile: "",
-      server: { host: "0.0.0.0", port: 8080, ctxSize: 81920, nGpuLayers: 99, threads: 4, nBatch: 4096 },
+      server: { host: "0.0.0.0", port: 8080, ctxSize: 81920, nGpuLayers: 99, threads: 4, nBatch: 4096, parallel: 1 },
       performance: { flashAttn: true, cacheTypeK: "q8_0", cacheTypeV: "q8_0", cudaGraphOpt: true, cudaForceCublasCompute16F: true },
       reasoning: { enabled: false, format: "deepseek" },
       chat: {
         maxTokens: 8192, temperature: 0.7, topP: 0.8, topK: 20, minP: 0.0,
         presencePenalty: 1.5, repetitionPenalty: 1.0,
-        seed: -1, repeatLastN: 256, frequencyPenalty: 0, nPredict: -1,
-        samplers: ["top_k", "tfs_z", "typical_p", "top_p", "min_p", "temperature"],
+        seed: -1, repeatLastN: 64, frequencyPenalty: 0, nPredict: -1,
+        samplers: QWEN_SAMPLERS,
         stop: ["<|im_end|>", "<|endoftext|>"],
         systemPrompt: "",
       },
@@ -267,6 +273,7 @@ function buildServerArgs() {
     "--cache-type-k", p.performance.cacheTypeK,
     "--cache-type-v", p.performance.cacheTypeV,
     "--batch-size", String(p.server.nBatch || 2048),
+    "--parallel", String(p.server.parallel || 1),
     "--metrics",
     "--slots",
     "--jinja",
@@ -506,6 +513,34 @@ ipcMain.handle("get-llm-slots", async () => {
     req.on("error", () => resolve([]));
     req.on("timeout", () => { req.destroy(); resolve([]); });
   });
+});
+
+ipcMain.handle("kill-all-slots", async () => {
+  const port = getPort();
+  // Fetch current slots
+  const slots = await new Promise((resolve) => {
+    const req = http.get(`http://localhost:${port}/slots`, { timeout: 3000 }, (res) => {
+      if (res.statusCode !== 200) { res.resume(); resolve([]); return; }
+      let d = "";
+      res.on("data", (c) => (d += c));
+      res.on("end", () => { try { resolve(JSON.parse(d)); } catch { resolve([]); } });
+    });
+    req.on("error", () => resolve([]));
+    req.on("timeout", () => { req.destroy(); resolve([]); });
+  });
+  if (!slots.length) return { ok: false, msg: "No slots found" };
+  // Erase each slot
+  let killed = 0;
+  for (const slot of slots) {
+    await new Promise((resolve) => {
+      const opts = { hostname: "localhost", port, path: `/slots/${slot.id}?action=erase`, method: "POST", timeout: 3000 };
+      const req = http.request(opts, (res) => { res.resume(); res.on("end", () => { if (res.statusCode === 200) killed++; resolve(); }); });
+      req.on("error", () => resolve());
+      req.on("timeout", () => { req.destroy(); resolve(); });
+      req.end();
+    });
+  }
+  return { ok: true, msg: `Erased ${killed}/${slots.length} slots` };
 });
 
 // ── IPC: Companion Lifecycle ─────────────────────────────────────────

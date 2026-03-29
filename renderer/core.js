@@ -207,7 +207,9 @@ function renderProcs(procs) {
   const tb = document.getElementById('proc-tb');
   clearNode(tb);
   procs.forEach(p => {
-    const cpu = p.cpu  -  p.c  -  0;
+    const cpuValue = p.cpu ?? p.c ?? 0;
+    const cpuParsed = typeof cpuValue === 'number' ? cpuValue : parseFloat(cpuValue);
+    const cpu = Number.isFinite(cpuParsed) ? cpuParsed : 0;
     const name = p.name || p.n || '';
     const user = p.user || p.u || '';
     const mem = p.mem || p.m || '';
@@ -850,6 +852,20 @@ function clock(){
 
 // â”€â”€ RESIZE ENGINE with localStorage â”€â”€
 const LS_KEY='nerv-tui-v3-sizes';
+const FLEX_FILL_BOXES = {
+  'box-prc': { flex: '1 1 60px', minHeight: '60px' },
+  'box-chat': { flex: '1 0 60px', minHeight: '60px' },
+};
+
+function normalizeFillBoxes() {
+  Object.entries(FLEX_FILL_BOXES).forEach(([id, cfg]) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.style.flex = cfg.flex;
+    el.style.minHeight = cfg.minHeight;
+    el.style.height = '';
+  });
+}
 
 function saveSizes(){
   try{
@@ -857,7 +873,7 @@ function saveSizes(){
     ['box-cpu','box-gpu','box-mem','box-net','box-dsk','box-prc',
      'box-hero','box-kvc','box-flg','box-slt','box-hist','box-log','box-chat'].forEach(id=>{
       const e=document.getElementById(id);
-      if(e&&e.style.height)o[id]=e.style.height;
+      if(e&&e.style.height&&!FLEX_FILL_BOXES[id])o[id]=e.style.height;
     });
     const sb=document.getElementById('sidebar');
     if(sb&&sb.style.width)o['__sb']=sb.style.width;
@@ -879,6 +895,7 @@ function restoreSizes(){
         }
       }
     });
+    normalizeFillBoxes();
   }catch(e){}
 }
 
@@ -889,7 +906,7 @@ function restoreSizes(){
   let drag=false,sx=0,sw=0;
   handle.addEventListener('mousedown',e=>{drag=true;sx=e.clientX;sw=sidebar.offsetWidth;handle.classList.add('on');document.body.style.cursor='col-resize';e.preventDefault();});
   document.addEventListener('mousemove',e=>{if(!drag)return;const nw=Math.max(180,Math.min(600,sw+(e.clientX-sx)));sidebar.style.width=nw+'px';sidebar.style.flex='none';});
-  document.addEventListener('mouseup',()=>{if(!drag)return;drag=false;handle.classList.remove('on');document.body.style.cursor='';saveSizes();});
+  document.addEventListener('mouseup',()=>{if(!drag)return;drag=false;handle.classList.remove('on');document.body.style.cursor='';normalizeFillBoxes();saveSizes();});
 })();
 
 // Horizontal drags
@@ -912,6 +929,8 @@ document.querySelectorAll('.drag-h').forEach(handle=>{
     a.style.flex='none';a.style.height=na+'px';
     b.style.flex='none';b.style.height=nb+'px';
   });
-  document.addEventListener('mouseup',()=>{if(!drag)return;drag=false;handle.classList.remove('on');document.body.style.cursor='';saveSizes();});
+  document.addEventListener('mouseup',()=>{if(!drag)return;drag=false;handle.classList.remove('on');document.body.style.cursor='';normalizeFillBoxes();saveSizes();});
 });
+
+window.addEventListener('resize', normalizeFillBoxes);
 

@@ -38,6 +38,7 @@ contextBridge.exposeInMainWorld("api", {
   getSystemMetrics: () => ipcRenderer.invoke("get-system-metrics"),
   getLlmMetrics: () => ipcRenderer.invoke("get-llm-metrics"),
   getLlmSlots: () => ipcRenderer.invoke("get-llm-slots"),
+  killAllSlots: () => ipcRenderer.invoke("kill-all-slots"),
 
   // Companion lifecycle
   startCompanion: () => ipcRenderer.invoke("start-companion"),

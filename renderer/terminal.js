@@ -2,11 +2,30 @@
 const _tabs = {chat: true, term: false, wsl: false};
 const _termInstances = {}; // id -> {xterm, fitAddon, started}
 
+function fitTerminal(id, scrollToBottom = false) {
+  const instance = _termInstances[id];
+  if (!instance) return;
+  try {
+    instance.fitAddon.fit();
+    window.api.ptyResize(id, instance.xterm.cols, instance.xterm.rows);
+    if (scrollToBottom) instance.xterm.scrollToBottom();
+  } catch {}
+}
+
+function scheduleTerminalFit(id, scrollToBottom = false) {
+  [0, 50, 150].forEach(delay => {
+    setTimeout(() => fitTerminal(id, scrollToBottom), delay);
+  });
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(() => fitTerminal(id, scrollToBottom)).catch(() => {});
+  }
+}
+
 function switchTab(id) {
   for (const t of ['chat','term','wsl']) {
     const panel = document.getElementById('panel-'+t);
     if (t===id) {
-      panel.style.display = t==='chat' ? 'flex' : 'block';
+      panel.style.display = 'flex';
     } else {
       panel.style.display = 'none';
     }
@@ -20,7 +39,7 @@ function switchTab(id) {
   if (id === 'term' && !_termInstances.term) initTerminal('term', 'powershell.exe');
   if (id === 'wsl'  && !_termInstances.wsl)  initTerminal('wsl', 'wsl.exe');
   // Fit on switch
-  if (_termInstances[id]) setTimeout(() => _termInstances[id].fitAddon.fit(), 50);
+  if (_termInstances[id]) scheduleTerminalFit(id, true);
 }
 
 async function initTerminal(id, shell) {
@@ -59,10 +78,14 @@ async function initTerminal(id, shell) {
   term.loadAddon(fitAddon);
 
   const container = document.getElementById('panel-'+id);
-  term.open(container);
-  fitAddon.fit();
+  while (container.firstChild) container.removeChild(container.firstChild);
+  const host = document.createElement('div');
+  host.className = 'term-host';
+  container.appendChild(host);
+  term.open(host);
 
-  _termInstances[id] = { xterm: term, fitAddon, started: true };
+  _termInstances[id] = { xterm: term, fitAddon, started: true, container, host };
+  scheduleTerminalFit(id, true);
 
   // Create PTY in main process
   const result = await window.api.ptyCreate(id, shell);
@@ -79,7 +102,9 @@ async function initTerminal(id, shell) {
   window.api.ptyResize(id, term.cols, term.rows);
 
   // Observe container resize
-  new ResizeObserver(() => { try { fitAddon.fit(); } catch {} }).observe(container);
+  const resizeObserver = new ResizeObserver(() => scheduleTerminalFit(id));
+  resizeObserver.observe(container);
+  resizeObserver.observe(host);
 }
 
 // Receive PTY data

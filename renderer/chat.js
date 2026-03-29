@@ -233,6 +233,16 @@ document.getElementById('chat-send').addEventListener('click', () => {
 
 // â”€â”€ LLM ACTION â”€â”€
 let _isRunning = false;
+async function killAllSlots() {
+  addLogEntry('INFO', 'Kill all slots requested');
+  try {
+    const r = await window.api.killAllSlots();
+    addLogEntry(r.ok ? 'INFO' : 'ERR', r.msg || 'kill-all-slots done');
+  } catch (err) {
+    addLogEntry('ERR', 'kill-all-slots error: ' + err.message);
+  }
+}
+
 async function llmAction(action) {
   const statusEl = document.getElementById('tb-status');
   const lhsEl = document.getElementById('lhs-st');
