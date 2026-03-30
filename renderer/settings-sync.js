@@ -2,12 +2,13 @@ async function initPorts() {
   try {
     const info = await window.api.getServerInfo();
     if (!info) return;
-    const host = info.host === "0.0.0.0" ? "localhost" : info.host;
-    LLM_CHAT_URL = "http://" + host + ":" + info.port + "/v1/chat/completions";
+    const connectHost = info.connectHost || ((info.host === "0.0.0.0" || info.host === "::" || !info.host) ? "127.0.0.2" : info.host);
+    const displayHost = (info.host === "0.0.0.0" || info.host === "::" || !info.host) ? "local" : info.host;
+    LLM_CHAT_URL = "http://" + connectHost + ":" + info.port + "/v1/chat/completions";
     _CTX = info.ctxSize || 81920;
     const ctxLabel = document.getElementById("ctx-cap-label");
     if (ctxLabel) ctxLabel.textContent = "Context - " + _CTX.toLocaleString();
-    document.getElementById("tb-model").textContent = (info.alias || "llama-server") + " - " + host + ":" + info.port;
+    document.getElementById("tb-model").textContent = (info.alias || "llama-server") + " - " + displayHost + ":" + info.port;
   } catch {}
 }
 

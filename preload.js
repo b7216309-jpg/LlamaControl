@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld("api", {
   stop: () => ipcRenderer.invoke("stop-server"),
   reboot: () => ipcRenderer.invoke("reboot-server"),
   getLogs: (n) => ipcRenderer.invoke("get-logs", n),
+  clearLogs: () => ipcRenderer.invoke("clear-logs"),
 
   // Server info
   getServerInfo: () => ipcRenderer.invoke("get-server-info"),

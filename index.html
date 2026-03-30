@@ -115,6 +115,8 @@ input[type=number]{-moz-appearance:textfield;}
 .btn-stop:hover{background:var(--rd);color:var(--bg);}
 .btn-reboot{color:var(--am);border-color:var(--am);}
 .btn-reboot:hover{background:var(--am);color:var(--bg);}
+.btn-clear{color:var(--fg2);border-color:var(--bdr);}
+.btn-clear:hover{background:var(--fg2);color:var(--bg);}
 /* window chrome buttons */
 .tb-sep{width:1px;height:14px;background:var(--bdr);margin:0 4px;}
 .win-btn{
@@ -261,6 +263,7 @@ if(window.__module){module=window.__module;if(window.__exports)exports=window.__
     <button class="btn-llm btn-stop"  onclick="llmAction('stop')"  title="Stop llama-server">stop</button>
     <button class="btn-llm btn-reboot" onclick="llmAction('reboot')" title="Restart llama-server">reboot</button>
     <button class="btn-llm btn-stop" onclick="killAllSlots()" title="Erase all slots KV cache &amp; cancel generations">kill slots</button>
+    <button class="btn-llm btn-clear" onclick="clearAllHistories()" title="Clear session histories across all modules">clear hist</button>
     <button class="win-btn" onclick="toggleAppSettings(event)" title="App settings" style="color:var(--fg2);border-color:var(--bdr);width:auto;padding:0 4px;font-size:9px;margin-left:4px;">&#9881;</button>
     <div class="tb-sep"></div>
     <button class="win-btn" onclick="toggleMini()" title="Mini mode" style="color:var(--cy);border-color:rgba(142,192,124,.35);width:auto;padding:0 5px;font-size:8px;letter-spacing:1px;">HUD</button>

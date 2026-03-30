@@ -306,9 +306,15 @@ function getPort() {
   return getActiveProfile().server.port;
 }
 
+function getConnectHost() {
+  const host = getActiveProfile().server.host;
+  if (!host || host === "0.0.0.0" || host === "::") return "127.0.0.2";
+  return host;
+}
+
 function checkHealth() {
   return new Promise((resolve) => {
-    const req = http.get(`http://localhost:${getPort()}/health`, { timeout: 3000 }, (res) => {
+    const req = http.get(`http://${getConnectHost()}:${getPort()}/health`, { timeout: 3000 }, (res) => {
       let data = "";
       res.on("data", (chunk) => (data += chunk));
       res.on("end", () => {
@@ -439,12 +445,23 @@ ipcMain.handle("get-logs", async (event, lineCount) => {
   }
 });
 
+ipcMain.handle("clear-logs", async () => {
+  try {
+    fs.mkdirSync(path.dirname(LOG_FILE), { recursive: true });
+    fs.writeFileSync(LOG_FILE, "", "utf-8");
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, msg: err.message };
+  }
+});
+
 // ── IPC: Server Info & Metrics ───────────────────────────────────────
 
 ipcMain.handle("get-server-info", async () => {
   const p = getActiveProfile();
   return {
     host: p.server.host,
+    connectHost: getConnectHost(),
     port: p.server.port,
     ctxSize: p.server.ctxSize,
     alias: p.alias,
@@ -478,7 +495,7 @@ ipcMain.handle("get-system-metrics", async () => {
 
 ipcMain.handle("get-llm-metrics", async () => {
   return new Promise((resolve) => {
-    const req = http.get(`http://localhost:${getPort()}/metrics`, { timeout: 2000 }, (res) => {
+    const req = http.get(`http://${getConnectHost()}:${getPort()}/metrics`, { timeout: 2000 }, (res) => {
       if (res.statusCode !== 200) { res.resume(); resolve(null); return; }
       let data = "";
       res.on("data", (chunk) => (data += chunk));
@@ -502,7 +519,7 @@ ipcMain.handle("get-llm-metrics", async () => {
 
 ipcMain.handle("get-llm-slots", async () => {
   return new Promise((resolve) => {
-    const req = http.get(`http://localhost:${getPort()}/slots`, { timeout: 2000 }, (res) => {
+    const req = http.get(`http://${getConnectHost()}:${getPort()}/slots`, { timeout: 2000 }, (res) => {
       if (res.statusCode !== 200) { res.resume(); resolve([]); return; }
       let data = "";
       res.on("data", (chunk) => (data += chunk));
@@ -517,9 +534,10 @@ ipcMain.handle("get-llm-slots", async () => {
 
 ipcMain.handle("kill-all-slots", async () => {
   const port = getPort();
+  const host = getConnectHost();
   // Fetch current slots
   const slots = await new Promise((resolve) => {
-    const req = http.get(`http://localhost:${port}/slots`, { timeout: 3000 }, (res) => {
+    const req = http.get(`http://${host}:${port}/slots`, { timeout: 3000 }, (res) => {
       if (res.statusCode !== 200) { res.resume(); resolve([]); return; }
       let d = "";
       res.on("data", (c) => (d += c));
@@ -533,7 +551,7 @@ ipcMain.handle("kill-all-slots", async () => {
   let killed = 0;
   for (const slot of slots) {
     await new Promise((resolve) => {
-      const opts = { hostname: "localhost", port, path: `/slots/${slot.id}?action=erase`, method: "POST", timeout: 3000 };
+      const opts = { hostname: host, port, path: `/slots/${slot.id}?action=erase`, method: "POST", timeout: 3000 };
       const req = http.request(opts, (res) => { res.resume(); res.on("end", () => { if (res.statusCode === 200) killed++; resolve(); }); });
       req.on("error", () => resolve());
       req.on("timeout", () => { req.destroy(); resolve(); });
@@ -582,7 +600,7 @@ ipcMain.handle("chat-send", async (event, messages, inferenceParams) => {
   return new Promise((resolve, reject) => {
     let resolved = false;
     const req = http.request({
-      hostname: "localhost",
+      hostname: getConnectHost(),
       port: getPort(),
       path: "/v1/chat/completions",
       method: "POST",

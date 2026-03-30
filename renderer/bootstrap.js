@@ -13,6 +13,7 @@ async function init() {
   await rescanModels();
   await loadPaths();
   updateFlags();
+  if (typeof _renderHistory === 'function') _renderHistory();
 
   // Check server status
   try {

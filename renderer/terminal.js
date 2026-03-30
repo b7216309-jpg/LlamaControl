@@ -2,6 +2,16 @@
 const _tabs = {chat: true, term: false, wsl: false};
 const _termInstances = {}; // id -> {xterm, fitAddon, started}
 
+function clearTerminalModuleHistory() {
+  Object.values(_termInstances).forEach((instance) => {
+    if (!instance?.xterm) return;
+    try {
+      instance.xterm.clear();
+      instance.xterm.scrollToBottom();
+    } catch {}
+  });
+}
+
 function fitTerminal(id, scrollToBottom = false) {
   const instance = _termInstances[id];
   if (!instance) return;

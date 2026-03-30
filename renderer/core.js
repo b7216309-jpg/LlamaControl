@@ -22,6 +22,18 @@ if (!Array.isArray(reqHist)) reqHist = [];
 let alertCount=0,alertDebounce={},alertLog=[];
 const peaks={cpu:0,gpuUtil:0,gpuTemp:0,gpuPow:0,vram:0,ram:0,tps:0};
 let slotStartTime=null,lastTokenCount=0,lastTokenTime=Date.now();
+let _derivedReqTotal = Array.isArray(reqHist) ? reqHist.length : 0;
+let _trackedExternalReq = null;
+let _lastRawMetrics = null;
+let _metricResetPending = false;
+const _metricResetBaselines = {
+  req_tot: null,
+  req_fail: null,
+  prompt_toks: null,
+  gen_toks: null,
+  prefill_s: null,
+  eval_s: null,
+};
 
 // â”€â”€ HISTORY ARRAYS for sparklines â”€â”€
 const H={cpu:[],gpu:[],tps:[],kv:[],mem:[]};
@@ -104,6 +116,117 @@ function getHistoryTokenTotals() {
     acc.out += Number.isFinite(out) ? out : 0;
     return acc;
   }, { thk: 0, out: 0 });
+}
+function previewPrompt(text, maxLen = 40) {
+  const compact = String(text || '').replace(/\s+/g, ' ').trim();
+  if (!compact) return '[external request]';
+  return compact.length > maxLen ? compact.slice(0, maxLen) : compact;
+}
+function pushHistoryEntry(entry) {
+  reqHist.unshift(entry);
+  if (reqHist.length > 20) reqHist.pop();
+  localStorage.setItem('nerv-req-hist', JSON.stringify(reqHist));
+  _derivedReqTotal = Math.max(_derivedReqTotal + 1, reqHist.length);
+  _renderHistory();
+}
+function setMetricResetBaselines(source) {
+  for (const key of Object.keys(_metricResetBaselines)) {
+    const value = Number(source?.[key]);
+    _metricResetBaselines[key] = Number.isFinite(value) ? value : 0;
+  }
+  _metricResetPending = false;
+}
+function adjustMetricCounter(key, value) {
+  const current = Number(value);
+  if (!Number.isFinite(current)) return 0;
+  const baseline = _metricResetBaselines[key];
+  if (!Number.isFinite(baseline)) return current;
+  if (current < baseline) {
+    _metricResetBaselines[key] = current;
+    return 0;
+  }
+  return Math.max(0, current - baseline);
+}
+function applyMetricResetBaselines(metrics) {
+  if (!metrics) return null;
+  if (_metricResetPending) setMetricResetBaselines(metrics);
+  return {
+    ...metrics,
+    req_tot: adjustMetricCounter('req_tot', metrics.req_tot),
+    req_fail: adjustMetricCounter('req_fail', metrics.req_fail),
+    prompt_toks: adjustMetricCounter('prompt_toks', metrics.prompt_toks),
+    gen_toks: adjustMetricCounter('gen_toks', metrics.gen_toks),
+    prefill_s: adjustMetricCounter('prefill_s', metrics.prefill_s),
+    eval_s: adjustMetricCounter('eval_s', metrics.eval_s),
+  };
+}
+function getSlotPromptTokens(sl) {
+  if (!sl) return 0;
+  if (sl.tokens_evaluated > 0) return sl.tokens_evaluated;
+  return Math.max(0, (sl.n_past || 0) - (sl.tokens_predicted || 0));
+}
+function getSlotThinkTokens(sl) {
+  return Math.max(0, Number(sl?.think_tokens) || 0);
+}
+function getSlotOutputTokens(sl) {
+  return Math.max(0, (Number(sl?.tokens_predicted) || 0) - getSlotThinkTokens(sl));
+}
+function getSlotUsedTokens(sl) {
+  const promptTokens = getSlotPromptTokens(sl);
+  const predicted = Math.max(0, Number(sl?.tokens_predicted) || 0);
+  return Math.max(Number(sl?.n_past) || 0, promptTokens + predicted);
+}
+function getRateFromTiming(count, ms) {
+  const n = Number(count) || 0;
+  const durMs = Number(ms) || 0;
+  if (n <= 0 || durMs <= 0) return 0;
+  return n / (durMs / 1000);
+}
+function getSlotTotalMs(sl) {
+  return (Number(sl?.timing_prompt_ms) || 0) + (Number(sl?.timing_think_ms) || 0) + (Number(sl?.timing_predicted_ms) || 0);
+}
+function updateContextCapacity(nCtx) {
+  const parsed = Number(nCtx);
+  if (!Number.isFinite(parsed) || parsed <= 0 || parsed === _CTX) return;
+  _CTX = parsed;
+  const ctxLabel = document.getElementById('ctx-cap-label');
+  if (ctxLabel) ctxLabel.textContent = 'Context - ' + _CTX.toLocaleString();
+}
+function recordExternalHistoryIfNeeded(sl) {
+  const isRunning = sl.state === 1;
+  if (isRunning) {
+    _trackedExternalReq = {
+      prompt: sl.prompt || _trackedExternalReq?.prompt || '',
+      think: Math.max(_trackedExternalReq?.think || 0, getSlotThinkTokens(sl)),
+      out: Math.max(_trackedExternalReq?.out || 0, getSlotOutputTokens(sl)),
+      promptTokens: Math.max(_trackedExternalReq?.promptTokens || 0, getSlotPromptTokens(sl)),
+      ttftMs: Math.max(_trackedExternalReq?.ttftMs || 0, Number(sl.timing_prompt_ms) || 0),
+      totalMs: Math.max(_trackedExternalReq?.totalMs || 0, getSlotTotalMs(sl)),
+      tps: Math.max(_trackedExternalReq?.tps || 0, getRateFromTiming(sl.tokens_predicted, sl.timing_predicted_ms)),
+    };
+    return;
+  }
+  if (!_trackedExternalReq) return;
+  const recentlyHandledByChat =
+    (typeof _activeInternalChat !== 'undefined' && _activeInternalChat) ||
+    (typeof _lastHistoryWriteAt !== 'undefined' && (Date.now() - _lastHistoryWriteAt) < 2500);
+  const hasUsefulData =
+    (_trackedExternalReq.prompt && _trackedExternalReq.prompt.trim()) ||
+    _trackedExternalReq.out > 0 ||
+    _trackedExternalReq.promptTokens > 0;
+  if (!recentlyHandledByChat && hasUsefulData) {
+    pushHistoryEntry({
+      now: new Date().toTimeString().slice(0, 8),
+      prompt: previewPrompt(_trackedExternalReq.prompt),
+      thk: _trackedExternalReq.think || 0,
+      out: _trackedExternalReq.out || 0,
+      tpsVal: _trackedExternalReq.tps > 0 ? _trackedExternalReq.tps.toFixed(1) : '--',
+      ttftVal: _trackedExternalReq.ttftMs > 0 ? _trackedExternalReq.ttftMs.toFixed(0) + 'ms' : '--',
+      totVal: _trackedExternalReq.totalMs > 0 ? (_trackedExternalReq.totalMs / 1000).toFixed(1) + 's' : '--',
+      source: 'external',
+    });
+  }
+  _trackedExternalReq = null;
 }
 
 // â”€â”€ ALERT SYSTEM â”€â”€
@@ -261,6 +384,9 @@ function showProcMenu(x, y, pid, name) {
 async function fetchSys() {
   try { return await window.api.getSystemMetrics(); } catch { return null; }
 }
+async function fetchHealth() {
+  try { return await window.api.getStatus(); } catch { return null; }
+}
 async function fetchMetrics() {
   try {
     const raw = await window.api.getLlmMetrics();
@@ -289,14 +415,18 @@ async function fetchMetrics() {
     const genSec = g('tokens_predicted_seconds_total');
     const reqProc = g('requests_processing');
     const reqDef = g('requests_deferred');
+    const reqFail = g('requests_errored_total', 'requests_failed_total', 'requests_error_total');
+    const reqStarted = g('requests_total', 'requests_started_total', 'requests_created_total', 'requests_submitted_total');
+    const reqCompleted = g('requests_completed_total', 'requests_success_total', 'requests_finished_total');
     const nDecode = g('n_decode_total');
+    const reqTot = reqStarted || ((reqCompleted > 0 || reqFail > 0) ? (reqCompleted + reqFail + reqProc + reqDef) : 0);
     return {
       kv_ratio: g('kv_cache_usage_ratio'),
       kv_full: g('kv_cache_full_events'),
       req_proc: reqProc,
       req_def: reqDef,
-      req_fail: 0,
-      req_tot: nDecode > 0 ? Math.max(1, nDecode) : (reqProc + reqDef),
+      req_fail: reqFail,
+      req_tot: reqTot,
       prompt_toks: promptToks,
       gen_toks: genToks,
       think_toks: 0,
@@ -324,7 +454,9 @@ async function update(){
 }
 async function _doUpdate(){
   // Fetch all 3 data sources IN PARALLEL
-  const [sys, m, slots] = await Promise.all([fetchSys(), fetchMetrics(), fetchSlots()]);
+  const [sys, health, rawMetrics, slots] = await Promise.all([fetchSys(), fetchHealth(), fetchMetrics(), fetchSlots()]);
+  _lastRawMetrics = rawMetrics ? { ...rawMetrics } : null;
+  const m = applyMetricResetBaselines(rawMetrics);
   // Find the active slot (is_processing) or the last-used slot (has params)
   let rawSl = {};
   if (slots && slots.length > 0) {
@@ -336,6 +468,7 @@ async function _doUpdate(){
     return Number.isFinite(parsed) ? parsed : fallback;
   };
   const sl = {
+    id: Number(rawSl.id) || 0,
     state: rawSl.is_processing ? 1 : (rawSl.state === 'processing' || rawSl.state === 1 ? 1 : 0),
     n_past: num(rawSl.n_past, num(nt.n_decoded, 0)),
     tokens_predicted: num(rawSl.tokens_predicted, num(nt.n_decoded, 0)),
@@ -348,6 +481,21 @@ async function _doUpdate(){
     prompt: rawSl.prompt || '',
     n_ctx: num(rawSl.n_ctx, _CTX),
   };
+  updateContextCapacity(sl.n_ctx);
+  recordExternalHistoryIfNeeded(sl);
+  const slotPromptT = getSlotPromptTokens(sl);
+  const slotThinkT = getSlotThinkTokens(sl);
+  const slotOutT = getSlotOutputTokens(sl);
+  const slotUsedT = getSlotUsedTokens(sl);
+  const slotTps = getRateFromTiming(sl.tokens_predicted, sl.timing_predicted_ms);
+  const slotPts = getRateFromTiming(slotPromptT, sl.timing_prompt_ms);
+  const activeSlots = Array.isArray(slots)
+    ? slots.filter(s => s?.is_processing || s?.state === 'processing' || s?.state === 1).length
+    : 0;
+  const totalSlots = Array.isArray(slots) && slots.length > 0 ? slots.length : 1;
+  const visibleActiveSlots = activeSlots > 0 ? activeSlots : (m?.req_proc || (sl.state === 1 ? 1 : 0));
+  const queueDepth = m ? m.req_def : Math.max(0, totalSlots - visibleActiveSlots);
+  const online = !!(rawMetrics || health?.running || (Array.isArray(slots) && slots.length > 0));
 
   // â”€â”€ SERVER-SIDE THINK TOKEN TRACKING â”€â”€
   // Detect when slot think_tokens resets (new request) â†’ accumulate previous
@@ -419,7 +567,7 @@ async function _doUpdate(){
   if (sys) updateMini(sys, m, sl);
 
   // â”€â”€ LLM HERO â”€â”€
-  if (!m) {
+  if (!online) {
     // server not running - set LLM status to stopped
     const stEl=document.getElementById('lhs-st');
     if(stEl){stEl.textContent='* STOPPED';stEl.style.color='var(--rd)';}
@@ -430,45 +578,52 @@ async function _doUpdate(){
     t0=0; // reset LLM uptime
     return;
   }
-  // Server is running (metrics endpoint responded)
+  // Server is reachable via metrics, slots, or health
   if(!t0) t0=Date.now(); // start LLM uptime counter
   {
     const tbSt=document.getElementById('tb-status');
     if(tbSt){tbSt.textContent='* running';tbSt.style.color='var(--gr)';}
   }
-  const tps=m._tps,pts=m._pts;
+  const tps=m ? m._tps : slotTps;
+  const pts=m ? m._pts : slotPts;
   if(tps>0){peakTps=Math.max(peakTps,tps);peaks.tps=peakTps;MAX_TPS=Math.max(60,Math.ceil(peakTps*1.3));}
   pushH('tps',tps);
-  setT('h-tps',tps.toFixed(1));setT('h-pts',pts.toFixed(0));
+  setT('h-tps',tps>0?tps.toFixed(1):'--');setT('h-pts',pts>0?pts.toFixed(0):'--');
   setG('g-htps',tps/MAX_TPS*100,ramp(100-tps/MAX_TPS*80));
   setG('g-hpts',pts/MAX_PTS*100,'var(--gr)');
   setSpark('sp-tps',H.tps,MAX_TPS);
-  setT('sb-tps',tps.toFixed(1));setC('sb-tps',ramp(100-tps/MAX_TPS*80));
+  setT('sb-tps',tps>0?tps.toFixed(1):'--');setC('sb-tps',tps>0?ramp(100-tps/MAX_TPS*80):'var(--fg2)');
 
-  setT('h-slot',m.req_proc+'/1');setT('h-q',m.req_def);
+  setT('h-slot',visibleActiveSlots+'/'+Math.max(1,totalSlots));setT('h-q',queueDepth);
 
-  const total=Math.floor(m.req_tot);
-  setT('h-req',total);
-  setT('h-suc',total>0?'100%':'--%');
+  const total=m && m.req_tot>0 ? Math.floor(m.req_tot) : Math.max(_derivedReqTotal, reqHist.length);
+  setT('h-req',total>0?String(total):'--');
+  const successPct=total>0?Math.max(0,((total-(m?.req_fail||0))/total)*100):0;
+  setT('h-suc',total>0?successPct.toFixed(0)+'%':'--%');
   const rpm=prevReq>0?(total-prevReq)*(60/(AS.pollInterval/1000)):0;prevReq=total;
-  setT('h-rpm',rpm.toFixed(1));
+  setT('h-rpm',total>0?rpm.toFixed(1):'--');
 
+  const isGenerating=(m ? m._run : false) || sl.state===1 || visibleActiveSlots>0;
   const stEl=document.getElementById('lhs-st');
-  if(stEl){stEl.textContent=m._run?'* GENERATING':'* ONLINE';stEl.style.color=m._run?'var(--or)':'var(--gr)';}
+  if(stEl){stEl.textContent=isGenerating?'* GENERATING':'* ONLINE';stEl.style.color=isGenerating?'var(--or)':'var(--gr)';}
   const sbLlm=document.getElementById('sb-llm');
-  if(sbLlm){sbLlm.textContent=m._run?'* GENERATING':'* ONLINE';sbLlm.style.color=m._run?'var(--or)':'var(--gr)';}
+  if(sbLlm){sbLlm.textContent=isGenerating?'* GENERATING':'* ONLINE';sbLlm.style.color=isGenerating?'var(--or)':'var(--gr)';}
 
   // â”€â”€ CONTEXT (use Prometheus totals + server-side thinking from /slots) â”€â”€
-  const totalUsed = m.prompt_toks + m.gen_toks;
+  const totalUsedMetrics = (m?.prompt_toks || 0) + (m?.gen_toks || 0);
   const histTok = getHistoryTokenTotals();
   const chatTok = typeof getChatSessionTokenStats === 'function'
     ? getChatSessionTokenStats()
     : { thinkToks: 0, contentToks: 0, lastThinkToks: 0, lastContentToks: 0 };
   const lastThinkT = chatTok.lastThinkToks || Number(_lastChatTimings?._thinkToks) || 0;
   const liveThinkT = _slotThinkAccum + curSlotThink;
-  const thkT = Math.min(m.gen_toks, Math.max(liveThinkT, chatTok.thinkToks, histTok.thk, lastThinkT));
-  const outT = Math.max(0, m.gen_toks - thkT);
-  const promT = m.prompt_toks;
+  const slotHasContext = slotUsedT > 0 || slotPromptT > 0 || sl.tokens_predicted > 0;
+  const promT = slotHasContext ? slotPromptT : (m?.prompt_toks || 0);
+  const thkT = slotHasContext
+    ? Math.max(slotThinkT, liveThinkT)
+    : Math.min(m?.gen_toks || 0, Math.max(liveThinkT, chatTok.thinkToks, histTok.thk, lastThinkT));
+  const outT = slotHasContext ? slotOutT : Math.max(0, (m?.gen_toks || 0) - thkT);
+  const totalUsed = slotHasContext ? Math.max(slotUsedT, promT + thkT + outT) : totalUsedMetrics;
   const freeT = Math.max(0, _CTX - totalUsed);
   const ctxp = Math.min(100, totalUsed / _CTX * 100);
   const fi = n => Math.max(.05, n / Math.max(1, totalUsed + freeT) * 100);
@@ -498,8 +653,8 @@ async function _doUpdate(){
   setT('slt-st',isRun?'running':'idle');setC('slt-st',isRun?'var(--gr)':'var(--fg2)');
   const sb=document.getElementById('slt-body');
   const p=sl.generation_settings||{};
-  const lastTtft=_lastChatTimings?_lastChatTimings.prompt_ms:0;
-  const lastTps=_lastChatTimings?_lastChatTimings.predicted_per_second:0;
+  const lastTtft=_lastChatTimings?_lastChatTimings.prompt_ms:(sl.timing_prompt_ms||0);
+  const lastTps=_lastChatTimings?_lastChatTimings.predicted_per_second:(slotTps||0);
   clearNode(sb);
   const kv = createDiv(undefined, undefined, 'kv');
   kv.appendChild(createSpan('k', 'State'));
@@ -510,8 +665,8 @@ async function _doUpdate(){
 
   const statsRow = createDiv(undefined, 'display:flex;gap:10px;font-size:10px;flex-wrap:wrap;');
   [
-    ['out', fmtTok(m.gen_toks), 'var(--gr)'],
-    ['prompt', fmtTok(m.prompt_toks), 'var(--cy)'],
+    ['out', fmtTok(slotOutT || m?.gen_toks || 0), 'var(--gr)'],
+    ['prompt', fmtTok(slotPromptT || m?.prompt_toks || 0), 'var(--cy)'],
     ['ttft', lastTtft > 0 ? lastTtft.toFixed(0) + 'ms' : '--', 'var(--am)'],
     ['t/s', lastTps > 0 ? lastTps.toFixed(1) : '--', 'var(--or)'],
   ].forEach(([label, value, color]) => {
@@ -543,9 +698,9 @@ async function _doUpdate(){
   sb.appendChild(paramsRow);
 
   // â”€â”€ TTFT from chat timings + Prometheus â”€â”€
-  const promMs = _lastChatTimings ? _lastChatTimings.prompt_ms : 0;
+  const promMs = _lastChatTimings ? _lastChatTimings.prompt_ms : (sl.timing_prompt_ms || 0);
   // Also compute from Prometheus if available: prompt_seconds_total / prompt_tokens_total * 1000
-  const promFromProm = m.prompt_toks > 0 && m.prefill_s > 0 ? (m.prefill_s / m.prompt_toks * 1000) : 0;
+  const promFromProm = m && m.prompt_toks > 0 && m.prefill_s > 0 ? (m.prefill_s / m.prompt_toks * 1000) : 0;
   const bestTtft = promMs > 0 ? promMs : promFromProm;
   if (bestTtft > 0 && (ttftH.length === 0 || ttftH[ttftH.length-1] !== bestTtft)) {
     if (promMs > 0) ttftH.push(promMs);
@@ -555,7 +710,7 @@ async function _doUpdate(){
   setT('h-ttft-avg', tavg > 0 ? tavg.toFixed(0) + ' ms' : '--');
 
   // â”€â”€ ALERTS â”€â”€
-  if (sys && m) checkAlerts(sys,m,sl);
+  if (sys) checkAlerts(sys, m || { kv_ratio: totalUsed / Math.max(1, _CTX), req_def: queueDepth, req_proc: visibleActiveSlots }, sl);
 }
 
 // â”€â”€ LOG â”€â”€
@@ -570,7 +725,13 @@ let _lastLogContent = '';
 async function fetchAndDisplayLogs() {
   try {
     const raw = await window.api.getLogs(80);
-    if (raw === '(no logs)' || raw === _lastLogContent) return;
+    if (raw === _lastLogContent) return;
+    if (raw === '(no logs)' || !raw.trim()) {
+      _lastLogContent = raw;
+      const c = document.getElementById('log-lines');
+      if (c) clearNode(c);
+      return;
+    }
     const oldLines = _lastLogContent ? _lastLogContent.split('\n') : [];
     _lastLogContent = raw;
     const newLines = raw.split('\n');
@@ -816,6 +977,70 @@ function _renderHistory() {
     appendCell(tr, String(r.totVal), 'text-align:right;color:var(--fg2)');
     tb.appendChild(tr);
   });
+}
+
+async function clearAllHistories() {
+  reqHist = [];
+  localStorage.setItem('nerv-req-hist', JSON.stringify(reqHist));
+  _derivedReqTotal = 0;
+  _trackedExternalReq = null;
+  _renderHistory();
+
+  ttftH.length = 0;
+  prevReq = 0;
+  peakTps = 0;
+  MAX_TPS = 60;
+  MAX_NET = 15;
+  slotStartTime = null;
+  lastTokenCount = 0;
+  lastTokenTime = Date.now();
+
+  for (const key of Object.keys(H)) H[key].length = 0;
+  for (const key of Object.keys(peaks)) peaks[key] = 0;
+  setSpark('sp-cpu', [], 100);
+  setSpark('sp-gpu', [], 100);
+  setSpark('sp-tps', [], MAX_TPS);
+
+  setT('h-ttft', '-- ms');
+  setT('h-ttft-avg', '-- ms');
+  setT('h-req', '--');
+  setT('h-suc', '--%');
+  setT('h-rpm', '--');
+  setT('v-tprom', '--');
+  setT('v-tthk', '--');
+  setT('v-tout', '--');
+  setT('v-peak', '--');
+  setT('m-ptoks', '--');
+  setT('m-gtoks', '--');
+  setT('m-peak', '--');
+
+  alertCount = 0;
+  alertDebounce = {};
+  alertLog = [];
+  document.querySelectorAll('.a-warn,.a-crit').forEach((el) => el.classList.remove('a-warn', 'a-crit'));
+  const badge = document.getElementById('alert-badge');
+  if (badge) {
+    badge.textContent = '0';
+    badge.className = 'alert-badge zero';
+  }
+  document.getElementById('health-popup')?.remove();
+
+  _lastLogContent = '';
+  clearNode(document.getElementById('log-lines'));
+  try {
+    const result = await window.api.clearLogs();
+    if (!result?.ok) console.warn('clearLogs failed:', result?.msg || 'unknown');
+  } catch (err) {
+    console.warn('clearLogs error:', err);
+  }
+
+  if (typeof clearChatModuleHistory === 'function') clearChatModuleHistory();
+  if (typeof clearTerminalModuleHistory === 'function') clearTerminalModuleHistory();
+
+  if (_lastRawMetrics) setMetricResetBaselines(_lastRawMetrics);
+  else _metricResetPending = true;
+
+  setTimeout(() => { update(); }, 0);
 }
 
 // â”€â”€ BOX COLLAPSE â”€â”€

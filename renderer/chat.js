@@ -1,5 +1,6 @@
 // â”€â”€ CHAT â”€â”€
-let LLM_CHAT_URL = 'http://localhost:8080/v1/chat/completions';
+// Use a loopback alias by default so WSL services on 127.0.0.1 do not shadow llama-server.
+let LLM_CHAT_URL = 'http://127.0.0.2:8080/v1/chat/completions';
 const chatHistory = [];
 let chatBusy = false;
 let _chatAbort = null;
@@ -7,6 +8,9 @@ let _lastChatTimings = null; // captured from SSE stream for TTFT/History
 let _sessionThinkToks = 0, _sessionContentToks = 0; // client-side thinking token tracking
 let _slotThinkAccum = 0, _prevSlotThink = 0; // server-side thinking token accumulator
 let _thinkHidden = false;
+let _activeInternalChat = false;
+let _lastHistoryWriteAt = 0;
+let _chatClearing = false;
 
 if (typeof reqHist !== 'undefined' && Array.isArray(reqHist)) {
   _sessionThinkToks = reqHist.reduce((sum, entry) => sum + (Number.isFinite(Number(entry?.thk)) ? Number(entry.thk) : 0), 0);
@@ -57,6 +61,37 @@ function chatAddMsg(role, text, streaming) {
   return textEl;
 }
 
+function clearChatModuleHistory() {
+  _chatClearing = !!(chatBusy && _chatAbort);
+  if (chatBusy && _chatAbort) {
+    try { _chatAbort.abort(); } catch {}
+  }
+  chatHistory.length = 0;
+  chatBusy = false;
+  _chatAbort = null;
+  _lastChatTimings = null;
+  _sessionThinkToks = 0;
+  _sessionContentToks = 0;
+  _slotThinkAccum = 0;
+  _prevSlotThink = 0;
+  _activeInternalChat = false;
+  _lastHistoryWriteAt = 0;
+
+  const msgs = document.getElementById('chat-msgs');
+  if (msgs) clearNode(msgs);
+  const input = document.getElementById('chat-input');
+  if (input) {
+    input.value = '';
+    input.style.color = 'var(--fg)';
+  }
+  const sendBtn = document.getElementById('chat-send');
+  if (sendBtn) {
+    sendBtn.textContent = 'send';
+    sendBtn.style.color = 'var(--cy)';
+  }
+  if (!_chatClearing) _chatClearing = false;
+}
+
 async function chatSend() {
   if (chatBusy) return;
   const input = document.getElementById('chat-input');
@@ -65,6 +100,7 @@ async function chatSend() {
   if (!text) return;
 
   chatBusy = true;
+  _activeInternalChat = true;
   input.value = '';
   input.style.color = 'var(--fg2)';
   sendBtn.style.color = 'var(--rd)';
@@ -190,10 +226,15 @@ async function chatSend() {
       const ttftVal = t.prompt_ms ? t.prompt_ms.toFixed(0) + 'ms' : '--';
       const totMs = (t.prompt_ms||0) + (t.predicted_ms||0);
       const totVal = totMs > 0 ? (totMs/1000).toFixed(1) + 's' : '--';
-      reqHist.unshift({now, prompt:promptPreview, thk:thkToks, out:outToks, tpsVal, ttftVal, totVal});
-      if (reqHist.length > 20) reqHist.pop();
-      localStorage.setItem('nerv-req-hist', JSON.stringify(reqHist));
-      _renderHistory();
+      const entry = {now, prompt:promptPreview, thk:thkToks, out:outToks, tpsVal, ttftVal, totVal, source:'chat'};
+      if (typeof pushHistoryEntry === 'function') pushHistoryEntry(entry);
+      else {
+        reqHist.unshift(entry);
+        if (reqHist.length > 20) reqHist.pop();
+        localStorage.setItem('nerv-req-hist', JSON.stringify(reqHist));
+        _renderHistory();
+      }
+      _lastHistoryWriteAt = Date.now();
       if (t.prompt_ms > 0) ttftH.push(t.prompt_ms);
     }
 
@@ -202,13 +243,15 @@ async function chatSend() {
     if (cur) cur.remove();
     if (err.name === 'AbortError') {
       // User stopped the stream - keep what we have
-      chatHistory.push({ role: 'assistant', content: fullText || '' });
+      if (!_chatClearing) chatHistory.push({ role: 'assistant', content: fullText || '' });
     } else if (assistantEl) {
       assistantEl.textContent = '[error: ' + err.message + ']'; assistantEl.style.color = 'var(--rd)';
     }
   }
 
   chatBusy = false;
+  _activeInternalChat = false;
+  _chatClearing = false;
   _chatAbort = null;
   sendBtn.textContent = 'send';
   sendBtn.style.color = 'var(--cy)';

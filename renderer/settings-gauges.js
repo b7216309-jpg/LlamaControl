@@ -224,6 +224,10 @@ function sApply() {
 }
 
 function sClear() {
+  if (typeof clearChatModuleHistory === "function") {
+    clearChatModuleHistory();
+    return;
+  }
   chatHistory.length = 0;
   const msgs = document.getElementById("chat-msgs");
   if (msgs) clearNode(msgs);
