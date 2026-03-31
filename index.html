@@ -6,13 +6,54 @@
 <style>
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
 
-:root {
+:root,
+:root[data-ui-theme="gruvbox"] {
   --bg:#0c0c0c;--bg1:#111;--bg2:#181818;
   --fg:#c8c093;--fg2:#727169;--fg3:#49483e;
   --or:#fe8019;--am:#fabd2f;--gr:#b8bb26;
   --cy:#8ec07c;--bl:#83a598;--rd:#fb4934;
   --vi:#d3869b;--wh:#ebdbb2;--bdr:#3c3836;
+  --or-soft:rgba(254,128,25,.12);--or-soft-weak:rgba(254,128,25,.06);--or-soft-badge:rgba(254,128,25,.08);
+  --rd-soft:rgba(251,73,52,.12);--rd-soft-badge:rgba(251,73,52,.08);--rd-soft-border:rgba(251,73,52,.3);--rd-soft-border-strong:rgba(251,73,52,.4);
+  --cy-soft:rgba(142,192,124,.08);--cy-soft-border:rgba(142,192,124,.35);
+  --gr-soft:rgba(184,187,38,.08);--am-soft:rgba(250,189,47,.08);--vi-soft:rgba(211,134,155,.08);
   --f:'JetBrains Mono',monospace;
+}
+
+:root[data-ui-theme="nord"] {
+  --bg:#0b1020;--bg1:#10172b;--bg2:#18213a;
+  --fg:#d8dee9;--fg2:#93a4c0;--fg3:#5c6b89;
+  --or:#f7b267;--am:#ffd166;--gr:#a3be8c;
+  --cy:#88c0d0;--bl:#81a1c1;--rd:#bf616a;
+  --vi:#b48ead;--wh:#eceff4;--bdr:#2c3553;
+  --or-soft:rgba(247,178,103,.12);--or-soft-weak:rgba(247,178,103,.06);--or-soft-badge:rgba(247,178,103,.08);
+  --rd-soft:rgba(191,97,106,.12);--rd-soft-badge:rgba(191,97,106,.08);--rd-soft-border:rgba(191,97,106,.3);--rd-soft-border-strong:rgba(191,97,106,.4);
+  --cy-soft:rgba(136,192,208,.08);--cy-soft-border:rgba(136,192,208,.35);
+  --gr-soft:rgba(163,190,140,.08);--am-soft:rgba(255,209,102,.08);--vi-soft:rgba(180,142,173,.08);
+}
+
+:root[data-ui-theme="forest"] {
+  --bg:#0c120d;--bg1:#131b15;--bg2:#1c261f;
+  --fg:#d7dfc8;--fg2:#8c9b7a;--fg3:#596451;
+  --or:#f4a259;--am:#f4d35e;--gr:#7fb069;
+  --cy:#5dbb63;--bl:#6c91c2;--rd:#e76f51;
+  --vi:#b388eb;--wh:#f2f6e9;--bdr:#334034;
+  --or-soft:rgba(244,162,89,.12);--or-soft-weak:rgba(244,162,89,.06);--or-soft-badge:rgba(244,162,89,.08);
+  --rd-soft:rgba(231,111,81,.12);--rd-soft-badge:rgba(231,111,81,.08);--rd-soft-border:rgba(231,111,81,.3);--rd-soft-border-strong:rgba(231,111,81,.4);
+  --cy-soft:rgba(93,187,99,.08);--cy-soft-border:rgba(93,187,99,.35);
+  --gr-soft:rgba(127,176,105,.08);--am-soft:rgba(244,211,94,.08);--vi-soft:rgba(179,136,235,.08);
+}
+
+:root[data-ui-theme="ember"] {
+  --bg:#140f0d;--bg1:#1c1411;--bg2:#281d18;
+  --fg:#e7d6c4;--fg2:#b59b86;--fg3:#7f6758;
+  --or:#ff9f1c;--am:#ffd166;--gr:#90be6d;
+  --cy:#43aa8b;--bl:#5dade2;--rd:#f25f5c;
+  --vi:#c77dff;--wh:#fff1e6;--bdr:#4a3930;
+  --or-soft:rgba(255,159,28,.12);--or-soft-weak:rgba(255,159,28,.06);--or-soft-badge:rgba(255,159,28,.08);
+  --rd-soft:rgba(242,95,92,.12);--rd-soft-badge:rgba(242,95,92,.08);--rd-soft-border:rgba(242,95,92,.3);--rd-soft-border-strong:rgba(242,95,92,.4);
+  --cy-soft:rgba(67,170,139,.08);--cy-soft-border:rgba(67,170,139,.35);
+  --gr-soft:rgba(144,190,109,.08);--am-soft:rgba(255,209,102,.08);--vi-soft:rgba(199,125,255,.08);
 }
 
 *{box-sizing:border-box;margin:0;padding:0;}
@@ -51,8 +92,8 @@ input[type=number]{-moz-appearance:textfield;}
 .s-btn:hover{background:var(--bg2);color:var(--wh);border-color:var(--fg2);}
 .s-btn-full{width:100%;background:transparent;border:1px solid var(--bdr);color:var(--fg2);font-family:var(--f);font-size:10px;cursor:pointer;padding:3px 0;transition:all .1s;}
 .s-btn-full:hover{background:var(--bg2);color:var(--wh);border-color:var(--fg2);}
-.s-btn-red{border-color:rgba(251,73,52,.3);color:var(--rd);}
-.s-btn-red:hover{background:rgba(251,73,52,.12);border-color:var(--rd);color:var(--rd);}
+.s-btn-red{border-color:var(--rd-soft-border);color:var(--rd);}
+.s-btn-red:hover{background:var(--rd-soft);border-color:var(--rd);color:var(--rd);}
 .s-check{font-size:10px;color:var(--fg2);display:flex;align-items:center;gap:0;flex-shrink:0;cursor:pointer;}
 .s-check label{cursor:pointer;display:flex;align-items:center;gap:6px;}
 .s-check input[type=checkbox]{display:none;}
@@ -63,7 +104,7 @@ input[type=number]{-moz-appearance:textfield;}
   color:var(--or);flex-shrink:0;line-height:1;
   transition:border-color .1s,background .1s;
 }
-.s-check input:checked + .chk{border-color:var(--or);background:rgba(254,128,25,.12);color:var(--or);}
+.s-check input:checked + .chk{border-color:var(--or);background:var(--or-soft);color:var(--or);}
 .s-check input:checked + .chk::before{content:'*';}
 .s-check input:not(:checked) + .chk::before{content:'';}
 .s-check:hover .chk{border-color:var(--fg2);}
@@ -73,7 +114,7 @@ input[type=number]{-moz-appearance:textfield;}
 /* sampler item */
 .sampler-item{display:flex;align-items:center;gap:6px;padding:2px 4px;font-size:10px;color:var(--fg2);border:1px solid transparent;cursor:grab;user-select:none;}
 .sampler-item:hover{border-color:var(--bdr);color:var(--wh);}
-.sampler-item.drag-over{border-color:var(--or);background:rgba(254,128,25,.06);}
+.sampler-item.drag-over{border-color:var(--or);background:var(--or-soft-weak);}
 .sampler-handle{color:var(--fg3);font-size:9px;flex-shrink:0;}
 /* stop tag */
 .stop-tag{display:flex;align-items:center;gap:3px;background:var(--bg2);border:1px solid var(--bdr);font-size:9px;color:var(--fg2);padding:1px 4px;}
@@ -129,7 +170,7 @@ input[type=number]{-moz-appearance:textfield;}
 .win-min:hover{background:var(--bdr);color:var(--wh);}
 .win-max{color:var(--fg2);border-color:var(--bdr);}
 .win-max:hover{background:var(--bdr);color:var(--wh);}
-.win-cls{color:var(--rd);border-color:rgba(251,73,52,.4);}
+.win-cls{color:var(--rd);border-color:var(--rd-soft-border-strong);}
 .win-cls:hover{background:var(--rd);color:var(--bg);}
 
 /* drag handles */
@@ -183,12 +224,12 @@ input[type=number]{-moz-appearance:textfield;}
 /* badges */
 .badges{display:flex;gap:4px;flex-wrap:wrap;flex-shrink:0;}
 .badge{font-size:9px;padding:0 3px;border:1px solid;}
-.b-cy{color:var(--cy);border-color:var(--cy);background:rgba(142,192,124,.08);}
-.b-or{color:var(--or);border-color:var(--or);background:rgba(254,128,25,.08);}
-.b-gr{color:var(--gr);border-color:var(--gr);background:rgba(184,187,38,.08);}
-.b-am{color:var(--am);border-color:var(--am);background:rgba(250,189,47,.08);}
-.b-vi{color:var(--vi);border-color:var(--vi);background:rgba(211,134,155,.08);}
-.b-rd{color:var(--rd);border-color:var(--rd);background:rgba(251,73,52,.08);}
+.b-cy{color:var(--cy);border-color:var(--cy);background:var(--cy-soft);}
+.b-or{color:var(--or);border-color:var(--or);background:var(--or-soft-badge);}
+.b-gr{color:var(--gr);border-color:var(--gr);background:var(--gr-soft);}
+.b-am{color:var(--am);border-color:var(--am);background:var(--am-soft);}
+.b-vi{color:var(--vi);border-color:var(--vi);background:var(--vi-soft);}
+.b-rd{color:var(--rd);border-color:var(--rd);background:var(--rd-soft-badge);}
 .b-dm{color:var(--fg2);border-color:var(--bdr);}
 
 /* table */
@@ -238,6 +279,15 @@ input[type=number]{-moz-appearance:textfield;}
 .term-host{display:flex;flex:1;min-height:0;min-width:0;width:100%;height:100%;padding:4px 10px 6px;}
 .term-host .xterm{flex:1;min-height:0;min-width:0;width:100%;height:100%;}
 </style>
+<script>
+(() => {
+  try {
+    const saved = JSON.parse(localStorage.getItem('llama-control-app-settings') || '{}');
+    const theme = typeof saved.uiTheme === 'string' ? saved.uiTheme : 'gruvbox';
+    document.documentElement.setAttribute('data-ui-theme', theme);
+  } catch {}
+})();
+</script>
 <link rel="stylesheet" href="node_modules/@xterm/xterm/css/xterm.css">
 <script>
 // Neutralize Node.js globals so UMD libs fall through to browser globals
@@ -266,7 +316,7 @@ if(window.__module){module=window.__module;if(window.__exports)exports=window.__
     <button class="btn-llm btn-clear" onclick="clearAllHistories()" title="Clear session histories across all modules">clear hist</button>
     <button class="win-btn" onclick="toggleAppSettings(event)" title="App settings" style="color:var(--fg2);border-color:var(--bdr);width:auto;padding:0 4px;font-size:9px;margin-left:4px;">&#9881;</button>
     <div class="tb-sep"></div>
-    <button class="win-btn" onclick="toggleMini()" title="Mini mode" style="color:var(--cy);border-color:rgba(142,192,124,.35);width:auto;padding:0 5px;font-size:8px;letter-spacing:1px;">HUD</button>
+    <button class="win-btn" onclick="toggleMini()" title="Mini mode" style="color:var(--cy);border-color:var(--cy-soft-border);width:auto;padding:0 5px;font-size:8px;letter-spacing:1px;">HUD</button>
     <div class="tb-sep"></div>
     <button class="win-btn win-min" onclick="window.api.minimizeWindow()" title="Minimize">&#9472;</button>
     <button class="win-btn win-max" onclick="window.api.maximizeWindow()" title="Maximize/Restore">&#9633;</button>
@@ -282,7 +332,7 @@ if(window.__module){module=window.__module;if(window.__exports)exports=window.__
     <span id="mini-model" style="font-size:9px;color:var(--fg2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;">LLM MONITOR</span>
     <div style="display:flex;gap:5px;align-items:center;flex-shrink:0;-webkit-app-region:no-drag;">
       <span id="mini-status" style="font-size:9px;color:var(--gr);font-weight:700;">* --</span>
-      <button class="win-btn" onclick="toggleMini()" title="Back to full" style="color:var(--cy);border-color:rgba(142,192,124,.35);width:auto;padding:0 4px;font-size:7px;">BACK</button>
+      <button class="win-btn" onclick="toggleMini()" title="Back to full" style="color:var(--cy);border-color:var(--cy-soft-border);width:auto;padding:0 4px;font-size:7px;">BACK</button>
       <button class="win-btn win-min" onclick="window.api.minimizeWindow()" title="Minimize" style="width:12px;height:12px;font-size:7px;">&#9472;</button>
       <button class="win-btn win-cls" onclick="window.api.closeWindow()" title="Close" style="width:12px;height:12px;font-size:7px;">&#10005;</button>
     </div>

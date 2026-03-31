@@ -4,15 +4,34 @@ let coresBuilt = false;
 
 // â”€â”€ APP SETTINGS (persisted in localStorage) â”€â”€
 const APP_SETTINGS_KEY = 'llama-control-app-settings';
+const UI_THEMES = {
+  gruvbox: 'Gruvbox',
+  nord: 'Nord',
+  forest: 'Forest',
+  ember: 'Ember',
+};
 const AS = {
   alertCpu: 90, alertGpu: 95, alertGpuTemp: 85, alertVram: 90, alertRam: 85,
   pollInterval: 1500, maxLogLines: 14, autoStartServer: false,
+  uiTheme: 'gruvbox',
 };
 function safeJsonParse(raw, fallback) {
   if (!raw) return fallback;
   try { return JSON.parse(raw); } catch { return fallback; }
 }
+function normalizeUiTheme(theme) {
+  return Object.prototype.hasOwnProperty.call(UI_THEMES, theme) ? theme : 'gruvbox';
+}
+function applyUiTheme(theme) {
+  const normalized = normalizeUiTheme(theme);
+  document.documentElement.setAttribute('data-ui-theme', normalized);
+  if (typeof refreshTerminalThemes === 'function') {
+    try { refreshTerminalThemes(); } catch {}
+  }
+  return normalized;
+}
 Object.assign(AS, safeJsonParse(localStorage.getItem(APP_SETTINGS_KEY), {}));
+AS.uiTheme = applyUiTheme(AS.uiTheme);
 function saveAS() { localStorage.setItem(APP_SETTINGS_KEY, JSON.stringify(AS)); }
 let _pollTimer = null, _logTimer = null;
 
@@ -852,8 +871,8 @@ function toggleAppSettings(e) {
   const rect = btn ? btn.getBoundingClientRect() : {left:200,bottom:22};
   pop = document.createElement('div');
   pop.id = 'app-settings-popup';
-  pop.style.cssText = 'position:fixed;z-index:9999;background:var(--bg1);border:1px solid var(--bdr);font-family:var(--f);font-size:10px;width:240px;display:flex;flex-direction:column;';
-  pop.style.left = Math.min(rect.left, window.innerWidth - 250) + 'px';
+  pop.style.cssText = 'position:fixed;z-index:9999;background:var(--bg1);border:1px solid var(--bdr);font-family:var(--f);font-size:10px;width:260px;display:flex;flex-direction:column;';
+  pop.style.left = Math.max(8, Math.min(rect.left, window.innerWidth - 270)) + 'px';
   pop.style.top = (rect.bottom + 4) + 'px';
 
   const row = (label, id, val, min, max, unit) => {
@@ -916,6 +935,24 @@ function toggleAppSettings(e) {
   pollingSection.appendChild(row('Max log lines', 'as-log', AS.maxLogLines, 5, 50, ''));
   pop.appendChild(pollingSection);
 
+  const appearanceSection = createDiv(undefined, 'border-top:1px solid var(--bdr);padding:6px 8px;display:flex;flex-direction:column;gap:4px;');
+  appearanceSection.appendChild(createDiv('APPEARANCE', 'font-size:9px;color:var(--fg3);letter-spacing:1px;'));
+  const themeRow = createDiv(undefined, 'display:flex;justify-content:space-between;align-items:center;gap:8px;');
+  themeRow.appendChild(createDiv('Interface color', 'color:var(--fg2)'));
+  const themeSelect = document.createElement('select');
+  themeSelect.id = 'as-theme';
+  themeSelect.style.cssText = 'background:var(--bg2);color:var(--wh);border:1px solid var(--bdr);font-family:var(--f);font-size:10px;padding:1px 3px;min-width:108px;';
+  Object.entries(UI_THEMES).forEach(([value, label]) => {
+    const option = document.createElement('option');
+    option.value = value;
+    option.textContent = label;
+    option.selected = AS.uiTheme === value;
+    themeSelect.appendChild(option);
+  });
+  themeRow.appendChild(themeSelect);
+  appearanceSection.appendChild(themeRow);
+  pop.appendChild(appearanceSection);
+
   const autoSection = createDiv(undefined, 'border-top:1px solid var(--bdr);padding:6px 8px;');
   const autoLabel = document.createElement('label');
   autoLabel.style.cssText = 'display:flex;align-items:center;gap:6px;cursor:pointer;color:var(--fg2);';
@@ -954,6 +991,7 @@ function toggleAppSettings(e) {
       _pollTimer = setInterval(update, AS.pollInterval);
       _logTimer = setInterval(fetchAndDisplayLogs, Math.max(AS.pollInterval * 2, 3000));
     }
+    AS.uiTheme = applyUiTheme(document.getElementById('as-theme').value);
     saveAS();
     pop.remove();
     addLogEntry('INFO', 'App settings updated');
