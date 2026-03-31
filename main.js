@@ -8,6 +8,8 @@ let pty;
 try { pty = require("node-pty"); } catch { pty = null; }
 
 const LOG_FILE = path.join(require("os").tmpdir(), "llama-server.log");
+const SMOKE_MODE = process.env.LLAMACTRL_SMOKE === "1";
+const SMOKE_TIMEOUT_MS = Number.parseInt(process.env.LLAMACTRL_SMOKE_TIMEOUT_MS || "", 10) || 15000;
 
 // ── Config Management ────────────────────────────────────────────────
 
@@ -355,9 +357,11 @@ async function stopServer() {
 // ── Companion.py Lifecycle ───────────────────────────────────────────
 
 let companionProcess = null;
+let smokeUserDataDir = null;
 
 function startCompanion() {
   return new Promise((resolve) => {
+    if (SMOKE_MODE) { resolve(); return; }
     if (companionProcess) { resolve(); return; }
     const pyScript = path.join(__dirname, "companion.py");
     let settled = false;
@@ -836,7 +840,94 @@ ipcMain.handle("window-get-bounds", () => {
 
 let win;
 
+function prepareSmokeUserData() {
+  if (!SMOKE_MODE || smokeUserDataDir) return;
+  smokeUserDataDir = fs.mkdtempSync(path.join(os.tmpdir(), "llamacontrol-smoke-"));
+  app.setPath("userData", smokeUserDataDir);
+}
+
+function cleanupSmokeUserData() {
+  if (!smokeUserDataDir) return;
+  try {
+    fs.rmSync(smokeUserDataDir, { recursive: true, force: true });
+  } catch {}
+  smokeUserDataDir = null;
+}
+
+async function collectSmokeSummary() {
+  return win.webContents.executeJavaScript(`
+    new Promise((resolve) => {
+      setTimeout(() => {
+        const requiredIds = ["app", "tb-status", "chat-input", "sb-llm"];
+        const rendererScripts = Array.from(document.querySelectorAll('script[src^="renderer/"]')).map((node) => node.getAttribute("src"));
+        const apiMethods = [
+          "getStatus",
+          "start",
+          "stop",
+          "reboot",
+          "getServerInfo",
+          "getLogs",
+          "clearLogs",
+          "getSystemMetrics",
+          "getLlmMetrics",
+          "getLlmSlots"
+        ];
+        resolve({
+          title: document.title,
+          missingIds: requiredIds.filter((id) => !document.getElementById(id)),
+          rendererScripts,
+          missingApiMethods: apiMethods.filter((name) => typeof window.api?.[name] !== "function"),
+          statusText: document.getElementById("tb-status")?.textContent?.trim() || "",
+          hasClearAllHistories: typeof clearAllHistories === "function",
+          hasInitPorts: typeof initPorts === "function",
+        });
+      }, 400);
+    });
+  `, true);
+}
+
+function installSmokeHooks() {
+  if (!SMOKE_MODE) return;
+
+  let finished = false;
+  const finish = (code, message) => {
+    if (finished) return;
+    finished = true;
+    clearTimeout(timeout);
+    const writer = code === 0 ? console.log : console.error;
+    writer(message);
+    setTimeout(() => app.exit(code), 0);
+  };
+
+  const timeout = setTimeout(() => {
+    finish(1, `SMOKE_FAIL timeout after ${SMOKE_TIMEOUT_MS}ms`);
+  }, SMOKE_TIMEOUT_MS);
+
+  win.webContents.once("did-fail-load", (event, errorCode, errorDescription) => {
+    finish(1, `SMOKE_FAIL load ${errorCode} ${errorDescription}`);
+  });
+
+  win.webContents.once("render-process-gone", (event, details) => {
+    finish(1, `SMOKE_FAIL renderer ${details.reason}`);
+  });
+
+  win.webContents.once("did-finish-load", async () => {
+    try {
+      const summary = await collectSmokeSummary();
+      if (summary.missingIds.length) throw new Error(`missing DOM nodes: ${summary.missingIds.join(", ")}`);
+      if (summary.missingApiMethods.length) throw new Error(`missing preload APIs: ${summary.missingApiMethods.join(", ")}`);
+      if (!summary.hasClearAllHistories) throw new Error("clearAllHistories is not available");
+      if (!summary.hasInitPorts) throw new Error("initPorts is not available");
+      if (summary.rendererScripts.length < 5) throw new Error("renderer scripts did not load");
+      finish(0, `SMOKE_OK ${JSON.stringify(summary)}`);
+    } catch (err) {
+      finish(1, `SMOKE_FAIL ${err && err.stack ? err.stack : err}`);
+    }
+  });
+}
+
 app.whenReady().then(() => {
+  prepareSmokeUserData();
   configPath = path.join(app.getPath("userData"), "config.json");
   config = loadConfig();
 
@@ -856,9 +947,10 @@ app.whenReady().then(() => {
   });
   win.setMenuBarVisibility(false);
   win.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+  installSmokeHooks();
   win.loadFile("index.html");
 
-  startCompanion();
+  if (!SMOKE_MODE) startCompanion();
 });
 
 app.on("window-all-closed", async () => {
@@ -870,4 +962,8 @@ app.on("window-all-closed", async () => {
 app.on("before-quit", async () => {
   Object.values(terminals).forEach(t => { try { t.handle.kill(); } catch {} });
   await stopCompanion();
+});
+
+app.on("will-quit", () => {
+  cleanupSmokeUserData();
 });
