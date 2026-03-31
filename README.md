@@ -107,14 +107,15 @@ LlamaControl is an Electron desktop application that provides a real-time, termi
 
 ### App Settings
 
-- Configurable alert thresholds, polling interval, max log lines, and auto-start behavior
+- Configurable alert thresholds, polling interval, max log lines, auto-start behavior, and interface color theme
+- **Selectable UI themes** -- switch between Gruvbox, Nord, Forest, and Ember from the title-bar gear menu
 - Persisted in localStorage independently of the profile/config system
 
 ### Terminal Integration
 
 - **PowerShell terminal** -- full interactive PowerShell session via xterm.js and node-pty
 - **WSL2 terminal** -- launch a WSL2 shell in a second tab
-- **Themed to match** the TUI aesthetic (Gruvbox-dark palette, JetBrains Mono, blinking cursor)
+- **Themed to match** the active UI palette (Gruvbox, Nord, Forest, or Ember) with JetBrains Mono and a blinking cursor
 - **Auto-fit** on resize with ResizeObserver
 - **Fallback** to child_process.spawn if node-pty is unavailable
 
@@ -201,10 +202,11 @@ This opens the LlamaControl window and automatically starts the Python companion
 ### Connect to llama-server
 
 1. Open the **Settings** panel (right column, or click the gear icon in the title bar).
-2. Under **Paths & CUDA**, set the path to your `llama-server` executable and your models directory.
-3. Under **Model**, click **rescan models** to discover all `.gguf` files. Select the model you want to load.
-4. Adjust server and generation parameters as needed.
-5. Click **apply & restart server**, or use the **start** button in the title bar.
+2. Optional: open **App Settings** from the gear icon to choose the interface color theme.
+3. Under **Paths & CUDA**, set the path to your `llama-server` executable and your models directory.
+4. Under **Model**, click **rescan models** to discover all `.gguf` files. Select the model you want to load.
+5. Adjust server and generation parameters as needed.
+6. Click **apply & restart server**, or use the **start** button in the title bar.
 
 The dashboard will begin polling the server's `/health`, `/metrics`, and `/slots` endpoints and display live telemetry.
 
@@ -245,7 +247,7 @@ The configuration file is stored at:
 
 ### App Settings
 
-Separate from profiles, app-level settings (alert thresholds, poll interval, max log lines, auto-start) are stored in the browser's localStorage.
+Separate from profiles, app-level settings are stored in the browser's localStorage. This includes alert thresholds, poll interval, max log lines, auto-start, and the selected interface theme.
 
 ---
 
@@ -289,7 +291,7 @@ Separate from profiles, app-level settings (alert thresholds, poll interval, max
 | Desktop shell    | [Electron](https://www.electronjs.org/) 35                       |
 | Terminal         | [xterm.js](https://xtermjs.org/) 6 + [node-pty](https://github.com/nicknisi/node-pty) 1.x |
 | UI               | Vanilla HTML/CSS/JS (no framework), JetBrains Mono font          |
-| Color scheme     | Gruvbox Dark                                                      |
+| Color scheme     | Selectable presets: Gruvbox, Nord, Forest, Ember                  |
 | System metrics   | Python 3 + [psutil](https://github.com/giampaolo/psutil) + [pynvml](https://github.com/gpuopenanalytics/pynvml) |
 | LLM backend      | [llama.cpp](https://github.com/ggerganov/llama.cpp) server (OpenAI-compatible API) |
 | Chat protocol    | Server-Sent Events (SSE) streaming                               |
