@@ -52,6 +52,7 @@ async function initSettings() {
       if (p.flags.noContextShift !== undefined) S.no_context_shift = p.flags.noContextShift;
       if (p.flags.contBatching !== undefined) S.cont_batching = p.flags.contBatching;
       if (p.flags.mlock !== undefined) S.mlock = p.flags.mlock;
+      if (p.flags.extraArgs !== undefined) S.extra_args = p.flags.extraArgs;
     }
 
     if (p.reasoning) {
@@ -122,6 +123,9 @@ function syncGaugesToSettings() {
     if (el && S[key]) el.value = S[key];
   }
 
+  const extraArgsEl = document.getElementById("s-extraargs");
+  if (extraArgsEl) extraArgsEl.value = S.extra_args || "";
+
   const seedSync = document.getElementById("s-seed");
   if (seedSync) seedSync.value = S.seed;
 
@@ -159,6 +163,7 @@ async function saveSettingsToConfig() {
     p.flags.noContextShift = S.no_context_shift;
     p.flags.contBatching = S.cont_batching;
     p.flags.mlock = S.mlock;
+    p.flags.extraArgs = S.extra_args || "";
     p.reasoning.enabled = !!S.reasoning;
 
     if (S.chat_template !== "jinja") {

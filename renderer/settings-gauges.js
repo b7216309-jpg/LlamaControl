@@ -21,6 +21,7 @@ const S = {
   cache_type_v: "q8_0",
   chat_template: "jinja",
   reasoning: true,
+  extra_args: "",
   system_prompt: "",
   stop: [],
   samplers: ["top_k", "tfs_z", "typical_p", "top_p", "min_p", "temperature"],
@@ -259,6 +260,7 @@ async function exportCmd() {
     S.chat_template === "jinja" ? "--chat-template-file chat_template.jinja" : "--chat-template " + S.chat_template,
     S.reasoning ? "--reasoning deepseek" : "",
     "--host " + (S.host || "0.0.0.0") + " --port " + (S.port || "8080"),
+    S.extra_args ? S.extra_args : "",
   ]
     .filter(Boolean)
     .join(" \\\n  ");
