@@ -784,6 +784,8 @@ if(window.__module){module=window.__module;if(window.__exports)exports=window.__
         <input type="number" class="s-num" id="s-seed" value="-1" min="-1" step="1" style="width:70px;">
         <button class="s-btn" onclick="document.getElementById('s-seed').value=Math.floor(Math.random()*2147483647);sSet('seed',document.getElementById('s-seed').value)">rnd</button>
       </div>
+      <div class="div"></div>
+      <div class="s-check"><label><input type="checkbox" id="s-cacheprompt" checked onchange="sSet('cache_prompt',this.checked)"><span class="chk"></span> cache_prompt</label></div>
 
     </div>
   </div>
@@ -832,8 +834,12 @@ if(window.__module){module=window.__module;if(window.__exports)exports=window.__
         <span class="s-val" id="sv-nctx">81920</span>
       </div>
       <div class="s-row"><label class="s-lbl">n_batch</label>
-        <div class="blk-gauge" id="s-nbatch" data-min="1" data-max="8192" data-step="1" data-val="512" data-key="n_batch" data-fmt="i"></div>
+        <div class="blk-gauge" id="s-nbatch" data-min="128" data-max="8192" data-step="128" data-val="512" data-key="n_batch" data-fmt="i"></div>
         <span class="s-val" id="sv-nbatch">512</span>
+      </div>
+      <div class="s-row"><label class="s-lbl">n_ubatch</label>
+        <div class="blk-gauge" id="s-nubatch" data-min="128" data-max="8192" data-step="128" data-val="512" data-key="n_ubatch" data-fmt="i"></div>
+        <span class="s-val" id="sv-nubatch">512</span>
       </div>
       <div class="s-row"><label class="s-lbl">n_gpu_layers</label>
         <div class="blk-gauge" id="s-ngl" data-min="0" data-max="99" data-step="1" data-val="99" data-key="n_gpu_layers" data-fmt="i"></div>
@@ -848,19 +854,32 @@ if(window.__module){module=window.__module;if(window.__exports)exports=window.__
       <div class="s-check"><label><input type="checkbox" id="s-ncs" checked onchange="sSet('no_context_shift',this.checked)"><span class="chk"></span> no_context_shift</label></div>
       <div class="s-check"><label><input type="checkbox" id="s-cont" onchange="sSet('cont_batching',this.checked)"><span class="chk"></span> cont_batching</label></div>
       <div class="s-check"><label><input type="checkbox" id="s-mlock" onchange="sSet('mlock',this.checked)"><span class="chk"></span> mlock</label></div>
+      <div class="s-check"><label><input type="checkbox" id="s-nommap" onchange="sSet('no_mmap',this.checked)"><span class="chk"></span> no_mmap</label></div>
       <div class="div"></div>
       <div class="s-row" style="height:auto;align-items:flex-start;flex-direction:column;gap:3px;">
         <label class="s-lbl">cache_type_k</label>
         <select class="s-sel" id="s-ctk" onchange="sSet('cache_type_k',this.value)">
-          <option value="f16">f16</option><option value="q8_0" selected>q8_0</option>
-          <option value="q4_0">q4_0</option><option value="q4_1">q4_1</option>
+          <option value="f32">f32</option>
+          <option value="f16">f16</option>
+          <option value="q8_0" selected>q8_0</option>
+          <option value="q5_1">q5_1</option>
+          <option value="q5_0">q5_0</option>
+          <option value="iq4_nl">iq4_nl</option>
+          <option value="q4_1">q4_1</option>
+          <option value="q4_0">q4_0</option>
         </select>
       </div>
       <div class="s-row" style="height:auto;align-items:flex-start;flex-direction:column;gap:3px;">
         <label class="s-lbl">cache_type_v</label>
         <select class="s-sel" id="s-ctv" onchange="sSet('cache_type_v',this.value)">
-          <option value="f16">f16</option><option value="q8_0" selected>q8_0</option>
-          <option value="q4_0">q4_0</option><option value="q4_1">q4_1</option>
+          <option value="f32">f32</option>
+          <option value="f16">f16</option>
+          <option value="q8_0" selected>q8_0</option>
+          <option value="q5_1">q5_1</option>
+          <option value="q5_0">q5_0</option>
+          <option value="iq4_nl">iq4_nl</option>
+          <option value="q4_1">q4_1</option>
+          <option value="q4_0">q4_0</option>
         </select>
       </div>
       <div class="div"></div>

@@ -140,6 +140,7 @@ async function chatSend() {
         seed: S.seed >= 0 ? S.seed : undefined,
         stop: S.stop.length > 0 ? S.stop : undefined,
         samplers: S.samplers,
+        cache_prompt: S.cache_prompt,
       }),
     });
 

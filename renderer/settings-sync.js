@@ -40,6 +40,7 @@ async function initSettings() {
       if (p.server.nGpuLayers !== undefined) S.n_gpu_layers = p.server.nGpuLayers;
       if (p.server.threads !== undefined) S.threads = p.server.threads;
       if (p.server.nBatch !== undefined) S.n_batch = p.server.nBatch;
+      if (p.server.nUbatch !== undefined) S.n_ubatch = p.server.nUbatch;
     }
 
     if (p.performance) {
@@ -54,8 +55,11 @@ async function initSettings() {
       if (p.flags.noContextShift !== undefined) S.no_context_shift = p.flags.noContextShift;
       if (p.flags.contBatching !== undefined) S.cont_batching = p.flags.contBatching;
       if (p.flags.mlock !== undefined) S.mlock = p.flags.mlock;
+      if (p.flags.noMmap !== undefined) S.no_mmap = p.flags.noMmap;
       if (p.flags.extraArgs !== undefined) S.extra_args = p.flags.extraArgs;
     }
+
+    if (p.chat && p.chat.cachePrompt !== undefined) S.cache_prompt = !!p.chat.cachePrompt;
 
     if (p.reasoning) {
       S.reasoning = !!p.reasoning.enabled;
@@ -92,6 +96,7 @@ function syncGaugesToSettings() {
     "s-npred": { key: "n_predict", fmt: "inf" },
     "s-nctx": { key: "n_ctx", fmt: "i" },
     "s-nbatch": { key: "n_batch", fmt: "i" },
+    "s-nubatch": { key: "n_ubatch", fmt: "i" },
     "s-ngl": { key: "n_gpu_layers", fmt: "i" },
     "s-thr": { key: "threads", fmt: "i" },
   };
@@ -110,6 +115,8 @@ function syncGaugesToSettings() {
     "s-ncs": "no_context_shift",
     "s-cont": "cont_batching",
     "s-mlock": "mlock",
+    "s-nommap": "no_mmap",
+    "s-cacheprompt": "cache_prompt",
   };
   for (const [id, key] of Object.entries(chkMap)) {
     const el = document.getElementById(id);
@@ -160,13 +167,16 @@ async function saveSettingsToConfig() {
     p.server.nGpuLayers = S.n_gpu_layers;
     p.server.threads = S.threads;
     p.server.nBatch = S.n_batch;
+    p.server.nUbatch = S.n_ubatch;
     p.performance.flashAttn = S.flash_attn;
     p.performance.cacheTypeK = S.cache_type_k;
     p.performance.cacheTypeV = S.cache_type_v;
     p.flags.noContextShift = S.no_context_shift;
     p.flags.contBatching = S.cont_batching;
     p.flags.mlock = S.mlock;
+    p.flags.noMmap = S.no_mmap;
     p.flags.extraArgs = S.extra_args || "";
+    p.chat.cachePrompt = !!S.cache_prompt;
     p.reasoning.enabled = !!S.reasoning;
 
     if (S.chat_template !== "jinja") {

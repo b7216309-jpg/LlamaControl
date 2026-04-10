@@ -177,6 +177,7 @@ async function updateFlags() {
   badges.push({ t: "--n-gpu-layers " + S.n_gpu_layers, c: "b-or" });
   badges.push({ t: "--threads " + S.threads, c: "b-am" });
   badges.push({ t: "--batch-size " + S.n_batch, c: "b-dm" });
+  badges.push({ t: "--ubatch-size " + (S.n_ubatch || S.n_batch), c: "b-dm" });
   badges.push({ t: "--parallel " + parallel, c: "b-dm" });
   if (alias) badges.push({ t: "--alias " + alias, c: "b-fg3" });
   badges.push({ t: "--cache-type-k " + S.cache_type_k, c: "b-cy" });
@@ -185,6 +186,7 @@ async function updateFlags() {
   if (S.no_context_shift) badges.push({ t: "--no-context-shift", c: "b-rd" });
   if (S.cont_batching) badges.push({ t: "--cont-batching", c: "b-gr" });
   if (S.mlock) badges.push({ t: "--mlock", c: "b-gr" });
+  if (S.no_mmap) badges.push({ t: "--no-mmap", c: "b-rd" });
   if (S.reasoning) badges.push({ t: "--reasoning-format deepseek", c: "b-vi" });
   if (tmplFile) badges.push({ t: "--chat-template-file " + tmplFile, c: "b-fg3" });
   if (mmproj) badges.push({ t: "--mmproj " + mmproj, c: "b-fg3" });

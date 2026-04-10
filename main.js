@@ -43,7 +43,7 @@ const DEFAULT_CONFIG = {
       alias: "Qwen3.5-9B-DavidAU-HERETIC",
       chatTemplateFile: TEMPLATE_THINK,
       mmprojFile: MMPROJ_PATH,
-      server: { host: "0.0.0.0", port: 8080, ctxSize: 81920, nGpuLayers: 99, threads: 4, nBatch: 4096, parallel: 1 },
+      server: { host: "0.0.0.0", port: 8080, ctxSize: 81920, nGpuLayers: 99, threads: 4, nBatch: 4096, nUbatch: 2048, parallel: 1 },
       performance: { flashAttn: true, cacheTypeK: "q8_0", cacheTypeV: "q8_0", cudaGraphOpt: true, cudaForceCublasCompute16F: true },
       reasoning: { enabled: true, format: "deepseek" },
       chat: {
@@ -65,7 +65,7 @@ const DEFAULT_CONFIG = {
       alias: "Qwen3.5-9B-DavidAU-HERETIC",
       chatTemplateFile: TEMPLATE_THINK,
       mmprojFile: MMPROJ_PATH,
-      server: { host: "0.0.0.0", port: 8080, ctxSize: 81920, nGpuLayers: 99, threads: 4, nBatch: 4096, parallel: 1 },
+      server: { host: "0.0.0.0", port: 8080, ctxSize: 81920, nGpuLayers: 99, threads: 4, nBatch: 4096, nUbatch: 2048, parallel: 1 },
       performance: { flashAttn: true, cacheTypeK: "q8_0", cacheTypeV: "q8_0", cudaGraphOpt: true, cudaForceCublasCompute16F: true },
       reasoning: { enabled: true, format: "deepseek" },
       chat: {
@@ -87,7 +87,7 @@ const DEFAULT_CONFIG = {
       alias: "Qwen3.5-9B-DavidAU-HERETIC",
       chatTemplateFile: TEMPLATE_INSTRUCT,
       mmprojFile: MMPROJ_PATH,
-      server: { host: "0.0.0.0", port: 8080, ctxSize: 81920, nGpuLayers: 99, threads: 4, nBatch: 4096, parallel: 1 },
+      server: { host: "0.0.0.0", port: 8080, ctxSize: 81920, nGpuLayers: 99, threads: 4, nBatch: 4096, nUbatch: 2048, parallel: 1 },
       performance: { flashAttn: true, cacheTypeK: "q8_0", cacheTypeV: "q8_0", cudaGraphOpt: true, cudaForceCublasCompute16F: true },
       reasoning: { enabled: false, format: "deepseek" },
       chat: {
@@ -110,7 +110,7 @@ const DEFAULT_CONFIG = {
       alias: "Qwen3.5-9B-DavidAU-HERETIC",
       chatTemplateFile: TEMPLATE_INSTRUCT,
       mmprojFile: MMPROJ_PATH,
-      server: { host: "0.0.0.0", port: 8080, ctxSize: 81920, nGpuLayers: 99, threads: 4, nBatch: 4096, parallel: 1 },
+      server: { host: "0.0.0.0", port: 8080, ctxSize: 81920, nGpuLayers: 99, threads: 4, nBatch: 4096, nUbatch: 2048, parallel: 1 },
       performance: { flashAttn: true, cacheTypeK: "q8_0", cacheTypeV: "q8_0", cudaGraphOpt: true, cudaForceCublasCompute16F: true },
       reasoning: { enabled: false, format: "deepseek" },
       chat: {
@@ -134,19 +134,21 @@ const DEFAULT_CONFIG = {
 
     // ── Profile 5: HauhauCS Thinking ─────────────────────────────────
     // Usage: Taches generales avec raisonnement, modele uncensored
-    // Source: Qwen3.5 official "Thinking Mode General Tasks" — temp 1.0, presence 1.5
+    // Source: HauhauCS model card — thinking mode: temp 0.6, top_p 0.95, top_k 20, min_p 0
+    // (HauhauCS does NOT use Qwen3.5 official "thinking general" preset — its card
+    //  specifies a lower temperature baked into the abliteration tuning.)
     "HauhauCS Thinking": {
       name: "HauhauCS Thinking",
       modelPath: MODEL_PATH,
       alias: "Qwen3.5-9B-HauhauCS-Aggressive",
       chatTemplateFile: "",
       mmprojFile: "",
-      server: { host: "0.0.0.0", port: 8080, ctxSize: 81920, nGpuLayers: 99, threads: 4, nBatch: 4096, parallel: 1 },
+      server: { host: "0.0.0.0", port: 8080, ctxSize: 81920, nGpuLayers: 99, threads: 4, nBatch: 4096, nUbatch: 2048, parallel: 1 },
       performance: { flashAttn: true, cacheTypeK: "q8_0", cacheTypeV: "q8_0", cudaGraphOpt: true, cudaForceCublasCompute16F: true },
       reasoning: { enabled: true, format: "deepseek" },
       chat: {
-        maxTokens: 81920, temperature: 1.0, topP: 0.95, topK: 20, minP: 0.0,
-        presencePenalty: 1.5, repetitionPenalty: 1.0,
+        maxTokens: 81920, temperature: 0.6, topP: 0.95, topK: 20, minP: 0.0,
+        presencePenalty: 0.0, repetitionPenalty: 1.0,
         seed: -1, repeatLastN: 64, frequencyPenalty: 0, nPredict: -1,
         samplers: QWEN_SAMPLERS,
         stop: ["<|im_end|>", "<|endoftext|>"],
@@ -163,12 +165,64 @@ const DEFAULT_CONFIG = {
       alias: "Qwen3.5-9B-HauhauCS-Aggressive",
       chatTemplateFile: TEMPLATE_INSTRUCT,
       mmprojFile: "",
-      server: { host: "0.0.0.0", port: 8080, ctxSize: 81920, nGpuLayers: 99, threads: 4, nBatch: 4096, parallel: 1 },
+      server: { host: "0.0.0.0", port: 8080, ctxSize: 81920, nGpuLayers: 99, threads: 4, nBatch: 4096, nUbatch: 2048, parallel: 1 },
       performance: { flashAttn: true, cacheTypeK: "q8_0", cacheTypeV: "q8_0", cudaGraphOpt: true, cudaForceCublasCompute16F: true },
       reasoning: { enabled: false, format: "deepseek" },
       chat: {
         maxTokens: 8192, temperature: 0.7, topP: 0.8, topK: 20, minP: 0.0,
         presencePenalty: 1.5, repetitionPenalty: 1.0,
+        seed: -1, repeatLastN: 64, frequencyPenalty: 0, nPredict: -1,
+        samplers: QWEN_SAMPLERS,
+        stop: ["<|im_end|>", "<|endoftext|>"],
+        systemPrompt: "",
+      },
+      flags: { noContextShift: true, extraArgs: "", contBatching: true, mlock: true },
+    },
+
+    // ═══════════════════════════════════════════════════════════════════
+    //  Qwopus v3 — Qwen3.5-9B Claude-4.6 Opus reasoning distilled
+    //  Source: codespermuted/qwopus harness (defaults temp 0.3, top_p 0.9, 4096 max)
+    //  Use case: code agent / structured reasoning, low-variance outputs
+    //  Note: text-only (no mmproj), reasoning-distilled so thinking format helpful
+    // ═══════════════════════════════════════════════════════════════════
+
+    // ── Profile 7: Qwopus Agent ─────────────────────────────────────
+    // Usage: Tool use, code generation, deterministic reasoning
+    // Source: qwopus harness defaults — temp 0.3, top_p 0.9
+    "Qwopus Agent": {
+      name: "Qwopus Agent",
+      modelPath: MODEL_PATH,
+      alias: "Qwen3.5-9B-Qwopus-v3",
+      chatTemplateFile: "",
+      mmprojFile: "",
+      server: { host: "0.0.0.0", port: 8080, ctxSize: 81920, nGpuLayers: 99, threads: 4, nBatch: 4096, nUbatch: 2048, parallel: 1 },
+      performance: { flashAttn: true, cacheTypeK: "q8_0", cacheTypeV: "q8_0", cudaGraphOpt: true, cudaForceCublasCompute16F: true },
+      reasoning: { enabled: true, format: "deepseek" },
+      chat: {
+        maxTokens: 4096, temperature: 0.3, topP: 0.9, topK: 40, minP: 0.0,
+        presencePenalty: 0.0, repetitionPenalty: 1.05,
+        seed: -1, repeatLastN: 64, frequencyPenalty: 0, nPredict: -1,
+        samplers: QWEN_SAMPLERS,
+        stop: ["<|im_end|>", "<|endoftext|>"],
+        systemPrompt: "",
+      },
+      flags: { noContextShift: true, extraArgs: "", contBatching: true, mlock: true },
+    },
+    // ── Profile 8: Qwopus Chat ──────────────────────────────────────
+    // Usage: Conversation, explications techniques, raisonnement interactif
+    // Slightly warmer than Agent for natural conversation
+    "Qwopus Chat": {
+      name: "Qwopus Chat",
+      modelPath: MODEL_PATH,
+      alias: "Qwen3.5-9B-Qwopus-v3",
+      chatTemplateFile: "",
+      mmprojFile: "",
+      server: { host: "0.0.0.0", port: 8080, ctxSize: 81920, nGpuLayers: 99, threads: 4, nBatch: 4096, nUbatch: 2048, parallel: 1 },
+      performance: { flashAttn: true, cacheTypeK: "q8_0", cacheTypeV: "q8_0", cudaGraphOpt: true, cudaForceCublasCompute16F: true },
+      reasoning: { enabled: true, format: "deepseek" },
+      chat: {
+        maxTokens: 32768, temperature: 0.5, topP: 0.9, topK: 40, minP: 0.0,
+        presencePenalty: 0.5, repetitionPenalty: 1.05,
         seed: -1, repeatLastN: 64, frequencyPenalty: 0, nPredict: -1,
         samplers: QWEN_SAMPLERS,
         stop: ["<|im_end|>", "<|endoftext|>"],
@@ -275,6 +329,7 @@ function buildServerArgs() {
     "--cache-type-k", p.performance.cacheTypeK,
     "--cache-type-v", p.performance.cacheTypeV,
     "--batch-size", String(p.server.nBatch || 512),
+    "--ubatch-size", String(p.server.nUbatch || p.server.nBatch || 512),
     "--parallel", String(p.server.parallel || 1),
     "--metrics",
     "--slots",
@@ -290,6 +345,7 @@ function buildServerArgs() {
   if (p.flags.noContextShift) args.push("--no-context-shift");
   if (p.flags.contBatching) args.push("--cont-batching");
   if (p.flags.mlock) args.push("--mlock");
+  if (p.flags.noMmap) args.push("--no-mmap");
   if (p.flags.extraArgs && p.flags.extraArgs.trim()) {
     args.push(...p.flags.extraArgs.trim().split(/\s+/));
   }
@@ -473,6 +529,7 @@ ipcMain.handle("get-server-info", async () => {
     nGpuLayers: p.server.nGpuLayers,
     threads: p.server.threads,
     nBatch: p.server.nBatch || 512,
+    nUbatch: p.server.nUbatch || p.server.nBatch || 512,
     flashAttn: p.performance.flashAttn,
     cacheTypeK: p.performance.cacheTypeK,
     cacheTypeV: p.performance.cacheTypeV,
