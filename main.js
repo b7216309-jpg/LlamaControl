@@ -274,7 +274,7 @@ function buildServerArgs() {
     "--alias", p.alias,
     "--cache-type-k", p.performance.cacheTypeK,
     "--cache-type-v", p.performance.cacheTypeV,
-    "--batch-size", String(p.server.nBatch || 2048),
+    "--batch-size", String(p.server.nBatch || 512),
     "--parallel", String(p.server.parallel || 1),
     "--metrics",
     "--slots",
@@ -577,92 +577,6 @@ ipcMain.handle("stop-companion", async () => {
   return { ok: true };
 });
 
-// ── IPC: Chat ────────────────────────────────────────────────────────
-
-let currentChatReq = null;
-
-ipcMain.handle("chat-send", async (event, messages, inferenceParams) => {
-  const p = getActiveProfile();
-  const params = inferenceParams || {};
-  const body = JSON.stringify({
-    messages,
-    max_tokens: params.n_predict !== undefined && params.n_predict > 0 ? params.n_predict : p.chat.maxTokens,
-    stream: true,
-    temperature: params.temperature ?? p.chat.temperature,
-    top_p: params.top_p ?? p.chat.topP,
-    top_k: params.top_k ?? p.chat.topK,
-    min_p: params.min_p ?? p.chat.minP,
-    presence_penalty: params.presence_penalty ?? p.chat.presencePenalty,
-    repeat_penalty: params.repeat_penalty ?? p.chat.repetitionPenalty,
-    frequency_penalty: params.frequency_penalty ?? p.chat.frequencyPenalty ?? 0,
-    repeat_last_n: params.repeat_last_n ?? p.chat.repeatLastN ?? 64,
-    seed: params.seed !== undefined && params.seed >= 0 ? params.seed : undefined,
-    stop: params.stop && params.stop.length > 0 ? params.stop : undefined,
-    samplers: params.samplers || undefined,
-  });
-
-  return new Promise((resolve, reject) => {
-    let resolved = false;
-    const req = http.request({
-      hostname: getConnectHost(),
-      port: getPort(),
-      path: "/v1/chat/completions",
-      method: "POST",
-      headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(body) },
-    }, (res) => {
-      let buffer = "";
-      res.on("data", (chunk) => {
-        buffer += chunk.toString();
-        const lines = buffer.split("\n");
-        buffer = lines.pop();
-        for (const line of lines) {
-          if (line.startsWith("data: ")) {
-            const data = line.slice(6).trim();
-            if (data === "[DONE]") {
-              if (!resolved) {
-                resolved = true;
-                win.webContents.send("chat-done");
-                currentChatReq = null;
-                resolve({ ok: true });
-              }
-              return;
-            }
-            try {
-              const parsed = JSON.parse(data);
-              const delta = parsed.choices?.[0]?.delta || {};
-              win.webContents.send("chat-token", delta);
-            } catch {}
-          }
-        }
-      });
-      res.on("end", () => {
-        if (!resolved) {
-          resolved = true;
-          win.webContents.send("chat-done");
-          currentChatReq = null;
-          resolve({ ok: true });
-        }
-      });
-    });
-    req.on("error", (err) => {
-      win.webContents.send("chat-done");
-      currentChatReq = null;
-      reject(err);
-    });
-    currentChatReq = req;
-    req.write(body);
-    req.end();
-  });
-});
-
-ipcMain.handle("chat-stop", async () => {
-  if (currentChatReq) {
-    currentChatReq.destroy();
-    currentChatReq = null;
-  }
-  return { ok: true };
-});
-
 // ── IPC: Config & Profiles ───────────────────────────────────────────
 
 ipcMain.handle("get-config", async () => {
@@ -686,9 +600,14 @@ ipcMain.handle("scan-models", async () => {
       if (entry.isDirectory()) {
         scanDir(fullPath);
       } else if (entry.name.endsWith(".gguf") && !entry.name.toLowerCase().startsWith("mmproj")) {
-        const stats = fs.statSync(fullPath);
+        let stats, parentFiles;
         const parentDir = path.dirname(fullPath);
-        const parentFiles = fs.readdirSync(parentDir);
+        try {
+          stats = fs.statSync(fullPath);
+          parentFiles = fs.readdirSync(parentDir);
+        } catch (e) {
+          continue;
+        }
         const chatTemplate = parentFiles.find((f) => /^chat_template.*\.jinja$/.test(f) && !/instruct/i.test(f));
         const chatTemplateInstruct = parentFiles.find((f) => /^chat_template.*instruct.*\.jinja$/i.test(f));
         const mmproj = parentFiles.find((f) => /^mmproj.*\.gguf$/i.test(f));

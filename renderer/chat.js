@@ -36,6 +36,7 @@ function toggleThinkVisibility() {
 
 function chatAddMsg(role, text, streaming) {
   const msgs = document.getElementById('chat-msgs');
+  const wasAtBottom = (msgs.scrollHeight - msgs.scrollTop - msgs.clientHeight) <= 32;
   const div = document.createElement('div');
   div.className = 'chat-msg ' + (role === 'user' ? 'user' : role === 'thinking' ? 'thinking' : 'assistant');
 
@@ -57,7 +58,9 @@ function chatAddMsg(role, text, streaming) {
   div.appendChild(roleEl);
   div.appendChild(textEl);
   msgs.appendChild(div);
-  msgs.scrollTop = msgs.scrollHeight;
+  // User messages always scroll to bottom (they just typed).
+  // Others only stick if user was already at bottom.
+  if (role === 'user' || wasAtBottom) msgs.scrollTop = msgs.scrollHeight;
   return textEl;
 }
 
@@ -133,7 +136,7 @@ async function chatSend() {
         repeat_last_n: S.repeat_last_n,
         frequency_penalty: S.frequency_penalty,
         presence_penalty: S.presence_penalty,
-        n_predict: S.n_predict > 0 ? S.n_predict : undefined,
+        max_tokens: S.n_predict > 0 ? S.n_predict : undefined,
         seed: S.seed >= 0 ? S.seed : undefined,
         stop: S.stop.length > 0 ? S.stop : undefined,
         samplers: S.samplers,
@@ -189,7 +192,11 @@ async function chatSend() {
           if (j.timings) _lastChatTimings = j.timings;
 
           if (content || reasoning) {
-            document.getElementById('chat-msgs').scrollTop = document.getElementById('chat-msgs').scrollHeight;
+            const msgs = document.getElementById('chat-msgs');
+            // Stick to bottom only if user is already there, so wheel-scroll-up stays put.
+            if ((msgs.scrollHeight - msgs.scrollTop - msgs.clientHeight) <= 64) {
+              msgs.scrollTop = msgs.scrollHeight;
+            }
           }
         } catch (_) {}
       }

@@ -24,7 +24,7 @@ const S = {
   extra_args: "",
   system_prompt: "",
   stop: [],
-  samplers: ["top_k", "tfs_z", "typical_p", "top_p", "min_p", "temperature"],
+  samplers: ["top_k", "tfs", "typ_p", "top_p", "min_p", "temperature"],
 };
 
 function sSet(key, val) {
@@ -237,30 +237,43 @@ function sClear() {
 async function exportCmd() {
   let serverExe = "llama-server";
   let modelPath = "./model.gguf";
+  let host = "0.0.0.0", port = 8080, parallel = 1, alias = "", tmplFile = "", mmproj = "";
   try {
     const config = await window.api.getConfig();
     serverExe = config.llamaServerExe || serverExe;
     const p = config.profiles[config.activeProfile];
-    modelPath = p.modelPath || modelPath;
-  } catch {}
+    if (p) {
+      modelPath = p.modelPath || modelPath;
+      host = p.server?.host ?? host;
+      port = p.server?.port ?? port;
+      parallel = p.server?.parallel ?? parallel;
+      alias = p.alias || "";
+      tmplFile = p.chatTemplateFile || "";
+      mmproj = p.mmprojFile || "";
+    }
+  } catch (e) { console.error("exportCmd getConfig:", e); }
 
   const cmd = [
     serverExe,
     '-m "' + modelPath + '"',
-    "--ctx " + S.n_ctx,
+    "--host " + host,
+    "--port " + port,
+    "--ctx-size " + S.n_ctx,
     "--n-gpu-layers " + S.n_gpu_layers,
     "--threads " + S.threads,
-    "--n-batch " + S.n_batch,
-    S.flash_attn ? "--flash-attn" : "",
+    "--batch-size " + S.n_batch,
+    "--parallel " + parallel,
+    alias ? '--alias "' + alias + '"' : "",
+    "--cache-type-k " + S.cache_type_k,
+    "--cache-type-v " + S.cache_type_v,
+    S.flash_attn ? "--flash-attn on" : "",
     S.no_context_shift ? "--no-context-shift" : "",
     S.cont_batching ? "--cont-batching" : "",
     S.mlock ? "--mlock" : "",
-    "--cache-type-k " + S.cache_type_k,
-    "--cache-type-v " + S.cache_type_v,
-    S.chat_template === "jinja" ? "--chat-template-file chat_template.jinja" : "--chat-template " + S.chat_template,
-    S.reasoning ? "--reasoning deepseek" : "",
-    "--host " + (S.host || "0.0.0.0") + " --port " + (S.port || "8080"),
-    S.extra_args ? S.extra_args : "",
+    S.reasoning ? "--reasoning-format deepseek" : "",
+    tmplFile ? '--chat-template-file "' + tmplFile + '"' : "",
+    mmproj ? '--mmproj "' + mmproj + '"' : "",
+    S.extra_args && S.extra_args.trim() ? S.extra_args.trim() : "",
   ]
     .filter(Boolean)
     .join(" \\\n  ");

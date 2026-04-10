@@ -12,20 +12,6 @@ contextBridge.exposeInMainWorld("api", {
   // Server info
   getServerInfo: () => ipcRenderer.invoke("get-server-info"),
 
-  // Chat
-  chatSend: (messages, params) => ipcRenderer.invoke("chat-send", messages, params),
-  chatStop: () => ipcRenderer.invoke("chat-stop"),
-  onChatToken: (cb) => {
-    const listener = (_, data) => cb(data);
-    ipcRenderer.on("chat-token", listener);
-    return () => ipcRenderer.removeListener("chat-token", listener);
-  },
-  onChatDone: (cb) => {
-    const listener = () => cb();
-    ipcRenderer.on("chat-done", listener);
-    return () => ipcRenderer.removeListener("chat-done", listener);
-  },
-
   // Config & profiles
   getConfig: () => ipcRenderer.invoke("get-config"),
   saveConfig: (cfg) => ipcRenderer.invoke("save-config", cfg),

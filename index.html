@@ -640,7 +640,7 @@ if(window.__module){module=window.__module;if(window.__exports)exports=window.__
   <div class="box" id="box-log" style="flex:1;min-height:60px;">
     <div class="box-title" style="color:var(--fg2)">[ llama-server - inference log ]</div>
     <button class="box-collapse" onclick="toggleBox('box-log')">-</button>
-    <div id="log-lines" class="box-body" style="flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;display:flex;flex-direction:column;justify-content:flex-end;margin-top:13px;padding-bottom:2px;"></div>
+    <div id="log-lines" class="box-body" style="flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;display:block;margin-top:13px;padding-bottom:2px;"></div>
   </div>
   <div class="drag-h" data-a="box-log" data-b="box-chat"></div>
 
@@ -658,7 +658,7 @@ if(window.__module){module=window.__module;if(window.__exports)exports=window.__
       <div style="display:flex;justify-content:flex-end;padding:0 6px;flex-shrink:0;">
         <button id="btn-think-toggle" onclick="toggleThinkVisibility()" style="background:none;border:1px solid var(--bdr);color:var(--am);font-family:var(--f);font-size:8px;cursor:pointer;padding:0 5px;line-height:1.3;">think:on</button>
       </div>
-      <div id="chat-msgs" style="flex:1;overflow-y:auto;overflow-x:hidden;padding:4px 10px;display:flex;flex-direction:column;justify-content:flex-end;gap:4px;min-height:0;"></div>
+      <div id="chat-msgs" style="flex:1;overflow-y:auto;overflow-x:hidden;padding:4px 10px;display:flex;flex-direction:column;gap:4px;min-height:0;"></div>
     </div>
     <!-- TERMINAL PANEL -->
     <div id="panel-term" class="term-panel"></div>
@@ -722,8 +722,8 @@ if(window.__module){module=window.__module;if(window.__exports)exports=window.__
   <div class="box" style="flex:0 0 auto;border-left:none;border-right:none;">
     <div class="box-title" style="color:var(--fg2)">[ Paths &amp; CUDA ]</div>
     <div class="box-body" style="gap:5px;">
-      <div class="s-row" style="grid-template-columns:60px 1fr 0;"><label class="s-lbl">server</label><input type="text" class="s-num" id="s-serverexe" style="width:100%"></div>
-      <div class="s-row" style="grid-template-columns:60px 1fr 0;"><label class="s-lbl">models</label><input type="text" class="s-num" id="s-modelsdir" style="width:100%"></div>
+      <div class="s-row" style="grid-template-columns:60px 1fr 0;"><label class="s-lbl">server</label><input type="text" class="s-num" id="s-serverexe" style="width:100%" oninput="savePaths()"></div>
+      <div class="s-row" style="grid-template-columns:60px 1fr 0;"><label class="s-lbl">models</label><input type="text" class="s-num" id="s-modelsdir" style="width:100%" oninput="savePaths()"></div>
       <div class="div"></div>
       <div class="s-check"><label><input type="checkbox" id="s-cudagraph" onchange="savePaths()"><span class="chk"></span> CUDA graph opt</label></div>
       <div class="s-check"><label><input type="checkbox" id="s-cudafp16" onchange="savePaths()"><span class="chk"></span> CUBLAS FP16</label></div>

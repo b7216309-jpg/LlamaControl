@@ -9,7 +9,7 @@ async function initPorts() {
     const ctxLabel = document.getElementById("ctx-cap-label");
     if (ctxLabel) ctxLabel.textContent = "Context - " + _CTX.toLocaleString();
     document.getElementById("tb-model").textContent = (info.alias || "llama-server") + " - " + displayHost + ":" + info.port;
-  } catch {}
+  } catch (e) { console.error("initPorts:", e); }
 }
 
 async function initSettings() {
@@ -46,6 +46,8 @@ async function initSettings() {
       if (p.performance.flashAttn !== undefined) S.flash_attn = p.performance.flashAttn;
       if (p.performance.cacheTypeK !== undefined) S.cache_type_k = p.performance.cacheTypeK;
       if (p.performance.cacheTypeV !== undefined) S.cache_type_v = p.performance.cacheTypeV;
+      if (p.performance.cudaGraphOpt !== undefined) S.cuda_graph_opt = !!p.performance.cudaGraphOpt;
+      if (p.performance.cudaForceCublasCompute16F !== undefined) S.cuda_fp16 = !!p.performance.cudaForceCublasCompute16F;
     }
 
     if (p.flags) {
@@ -71,6 +73,7 @@ async function initSettings() {
     syncGaugesToSettings();
     buildSamplerList();
     renderStops();
+    if (typeof updateFlags === "function") updateFlags();
   } catch (e) {
     console.error("initSettings error:", e);
   }
@@ -171,6 +174,7 @@ async function saveSettingsToConfig() {
     }
 
     await window.api.saveConfig(config);
+    if (typeof updateFlags === "function") updateFlags();
   } catch (e) {
     console.error("saveSettingsToConfig error:", e);
   }

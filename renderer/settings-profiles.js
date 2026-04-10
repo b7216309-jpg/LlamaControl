@@ -12,7 +12,7 @@ async function loadProfiles() {
       if (name === activeProfile) opt.selected = true;
       sel.appendChild(opt);
     }
-  } catch {}
+  } catch (e) { console.error("loadProfiles:", e); }
 }
 
 async function switchProfile(name) {
@@ -122,7 +122,7 @@ async function loadPaths() {
     const p = config.profiles[config.activeProfile];
     document.getElementById("s-cudagraph").checked = p?.performance?.cudaGraphOpt || false;
     document.getElementById("s-cudafp16").checked = p?.performance?.cudaForceCublasCompute16F || false;
-  } catch {}
+  } catch (e) { console.error("loadPaths:", e); }
 }
 
 async function savePaths() {
@@ -134,7 +134,7 @@ async function savePaths() {
     p.performance.cudaGraphOpt = document.getElementById("s-cudagraph").checked;
     p.performance.cudaForceCublasCompute16F = document.getElementById("s-cudafp16").checked;
     await window.api.saveConfig(config);
-  } catch {}
+  } catch (e) { console.error("savePaths:", e); }
 }
 
 async function applyAndRestart() {
@@ -154,21 +154,41 @@ async function applyAndRestart() {
   }, 3000);
 }
 
-function updateFlags() {
+async function updateFlags() {
   const box = document.querySelector("#box-flg .box-body");
   if (!box) return;
+  let host = "0.0.0.0", port = 8080, parallel = 1, alias = "", tmplFile = "", mmproj = "";
+  try {
+    const cfg = await window.api.getConfig();
+    const p = cfg.profiles[cfg.activeProfile];
+    if (p) {
+      host = p.server?.host ?? host;
+      port = p.server?.port ?? port;
+      parallel = p.server?.parallel ?? parallel;
+      alias = p.alias || "";
+      tmplFile = p.chatTemplateFile || "";
+      mmproj = p.mmprojFile || "";
+    }
+  } catch (e) { console.error("updateFlags getConfig:", e); }
   const badges = [];
-  badges.push({ t: "--ctx " + S.n_ctx, c: "b-cy" });
+  badges.push({ t: "--host " + host, c: "b-am" });
+  badges.push({ t: "--port " + port, c: "b-am" });
+  badges.push({ t: "--ctx-size " + S.n_ctx, c: "b-cy" });
   badges.push({ t: "--n-gpu-layers " + S.n_gpu_layers, c: "b-or" });
-  if (S.flash_attn) badges.push({ t: "--flash-attn", c: "b-gr" });
+  badges.push({ t: "--threads " + S.threads, c: "b-am" });
+  badges.push({ t: "--batch-size " + S.n_batch, c: "b-dm" });
+  badges.push({ t: "--parallel " + parallel, c: "b-dm" });
+  if (alias) badges.push({ t: "--alias " + alias, c: "b-fg3" });
   badges.push({ t: "--cache-type-k " + S.cache_type_k, c: "b-cy" });
   badges.push({ t: "--cache-type-v " + S.cache_type_v, c: "b-cy" });
-  badges.push({ t: "--threads " + S.threads, c: "b-am" });
+  if (S.flash_attn) badges.push({ t: "--flash-attn on", c: "b-gr" });
   if (S.no_context_shift) badges.push({ t: "--no-context-shift", c: "b-rd" });
-  if (S.reasoning) badges.push({ t: "--reasoning deepseek", c: "b-vi" });
-  badges.push({ t: "--n-batch " + S.n_batch, c: "b-dm" });
   if (S.cont_batching) badges.push({ t: "--cont-batching", c: "b-gr" });
   if (S.mlock) badges.push({ t: "--mlock", c: "b-gr" });
+  if (S.reasoning) badges.push({ t: "--reasoning-format deepseek", c: "b-vi" });
+  if (tmplFile) badges.push({ t: "--chat-template-file " + tmplFile, c: "b-fg3" });
+  if (mmproj) badges.push({ t: "--mmproj " + mmproj, c: "b-fg3" });
+  if (S.extra_args && S.extra_args.trim()) badges.push({ t: S.extra_args.trim(), c: "b-fg3" });
   clearNode(box);
   badges.forEach((b) => {
     const badge = createSpan("badge " + b.c, b.t);

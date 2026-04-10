@@ -109,13 +109,23 @@ function createDiv(text, style, className) {
   if (text !== undefined) div.textContent = text;
   return div;
 }
+// Stick-to-bottom helper: only auto-scroll if user is already near the bottom.
+// Threshold 24px tolerates tiny rounding and keeps user position if they scrolled up.
+function isNearBottom(el, px = 24) {
+  return (el.scrollHeight - el.scrollTop - el.clientHeight) <= px;
+}
+function stickScrollBottom(el) {
+  el.scrollTop = el.scrollHeight;
+}
 function appendLogLine(container, ts, lvl, msg) {
+  const atBottom = isNearBottom(container);
   const line = document.createElement('div');
   line.className = 'log-line';
   line.appendChild(createSpan('log-ts', ts));
   line.appendChild(createSpan('log-lvl lvl-' + lvl, '[' + lvl + ']'));
   line.appendChild(createSpan('log-msg new', msg));
   container.appendChild(line);
+  if (atBottom) stickScrollBottom(container);
   setTimeout(() => {
     const m = line.querySelector('.log-msg');
     if (m) m.classList.remove('new');

@@ -64,8 +64,10 @@ except Exception as e:
 
 _prev_net  = psutil.net_io_counters()
 _prev_time = time.time()
-_cache     = {}
-_lock      = threading.Lock()
+_proc_cache = {}   # pid -> psutil.Process (persistent for cpu_percent deltas)
+_cpu_count = psutil.cpu_count(logical=True) or 1
+# Prime global cpu_percent so the first /poll returns meaningful values
+psutil.cpu_percent(percpu=True)
 
 def collect():
     global _prev_net, _prev_time
@@ -156,25 +158,53 @@ def collect():
             pass
 
     # ── PROCESSES ──────────────────────────────────────────────────
+    # Maintain a persistent dict of psutil.Process so cpu_percent() returns a
+    # real delta between polls. First time we see a pid we prime it (returns 0)
+    # and skip it — next poll will yield a meaningful value.
+    # Values are divided by cpu_count to match Task Manager style (0-100%).
+    global _proc_cache
     procs = []
+    seen = {}
     try:
-        for p in psutil.process_iter(['pid', 'name', 'username', 'cpu_percent', 'memory_info']):
+        for p in psutil.process_iter(['pid', 'name', 'username']):
             try:
                 info = p.info
-                if info['cpu_percent'] is None or info['cpu_percent'] < 0.1 or info['pid'] == 0:
+                pid = info['pid']
+                if pid == 0:
                     continue
-                pmem = info['memory_info']
-                mem_str = f"{pmem.rss / (1024**2):.0f}M" if pmem and pmem.rss < 1024**3 else (f"{pmem.rss / (1024**3):.1f}G" if pmem else "0")
+                proc = _proc_cache.get(pid)
+                if proc is None:
+                    try:
+                        proc = psutil.Process(pid)
+                        proc.cpu_percent(None)  # prime, returns 0.0
+                    except (psutil.NoSuchProcess, psutil.AccessDenied):
+                        continue
+                    seen[pid] = proc
+                    continue  # skip first sighting — no meaningful delta yet
+                try:
+                    cpu_raw = proc.cpu_percent(None)
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    continue
+                seen[pid] = proc
+                cpu = cpu_raw / _cpu_count
+                if cpu < 0.1:
+                    continue
+                try:
+                    pmem = proc.memory_info()
+                    rss = pmem.rss
+                    mem_str = f"{rss / (1024**2):.0f}M" if rss < 1024**3 else f"{rss / (1024**3):.1f}G"
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    mem_str = "0"
                 procs.append({
-                    "pid": info['pid'],
+                    "pid": pid,
                     "name": (info['name'] or '')[:20],
                     "user": (info['username'] or '').split('\\')[-1][:12],
-                    "cpu": round(info['cpu_percent'], 1),
+                    "cpu": round(cpu, 1),
                     "mem": mem_str,
-                    "gpu": 0,
                 })
             except (psutil.NoSuchProcess, psutil.AccessDenied):
                 pass
+        _proc_cache = seen  # drop dead pids
         procs.sort(key=lambda x: x['cpu'], reverse=True)
         procs = procs[:15]
     except Exception:
