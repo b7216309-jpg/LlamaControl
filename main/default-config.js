@@ -41,8 +41,11 @@ function createFlagsDefaults() {
 }
 
 function createChatDefaults(overrides = {}) {
+  const maxTokens = Number.isFinite(overrides.maxTokens) ? overrides.maxTokens : 81920;
+  const nPredict = Number.isFinite(overrides.nPredict) ? overrides.nPredict : maxTokens;
+
   return {
-    maxTokens: 81920,
+    maxTokens,
     temperature: 1.0,
     topP: 0.95,
     topK: 20,
@@ -52,11 +55,13 @@ function createChatDefaults(overrides = {}) {
     seed: -1,
     repeatLastN: 64,
     frequencyPenalty: 0,
-    nPredict: -1,
+    nPredict,
     samplers: [...QWEN_SAMPLERS],
     stop: [...STOP_SEQUENCES],
     systemPrompt: "",
     ...overrides,
+    maxTokens,
+    nPredict,
   };
 }
 
@@ -76,7 +81,7 @@ function createProfile({
     mmprojFile,
     server: createServerDefaults(),
     performance: createPerformanceDefaults(),
-    reasoning: { enabled: reasoningEnabled, format: "deepseek" },
+    reasoning: { enabled: reasoningEnabled, format: "deepseek", budget: 8192 },
     chat: createChatDefaults(chat),
     flags: createFlagsDefaults(),
   };

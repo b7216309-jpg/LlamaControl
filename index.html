@@ -849,6 +849,11 @@ if(window.__module){module=window.__module;if(window.__exports)exports=window.__
         <div class="blk-gauge" id="s-thr" data-min="1" data-max="16" data-step="1" data-val="4" data-key="threads" data-fmt="i"></div>
         <span class="s-val" id="sv-thr">4</span>
       </div>
+      <div class="s-row"><label class="s-lbl">think_budget</label>
+        <div class="blk-gauge" id="s-rbud" data-min="256" data-max="32768" data-step="256" data-val="8192" data-key="reasoning_budget" data-fmt="budget"></div>
+        <span class="s-val" id="sv-rbud">8192</span>
+      </div>
+      <div class="s-note">reasoning token budget; use apply &amp; restart. 8k is the sweet spot for 131k ctx, 4k is tighter/faster, 12k+ is deeper but slower</div>
       <div class="div"></div>
       <div class="s-check"><label><input type="checkbox" id="s-fa" checked onchange="sSet('flash_attn',this.checked)"><span class="chk"></span> flash_attn</label></div>
       <div class="s-check"><label><input type="checkbox" id="s-ncs" checked onchange="sSet('no_context_shift',this.checked)"><span class="chk"></span> no_context_shift</label></div>

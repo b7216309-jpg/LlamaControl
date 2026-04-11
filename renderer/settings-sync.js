@@ -29,7 +29,8 @@ async function initSettings() {
       if (p.chat.frequencyPenalty !== undefined) S.frequency_penalty = p.chat.frequencyPenalty;
       if (p.chat.repeatLastN !== undefined) S.repeat_last_n = p.chat.repeatLastN;
       if (p.chat.seed !== undefined) S.seed = p.chat.seed;
-      if (p.chat.nPredict !== undefined) S.n_predict = p.chat.nPredict;
+      const resolvedPredict = p.chat.nPredict !== undefined ? p.chat.nPredict : p.chat.maxTokens;
+      if (resolvedPredict !== undefined) S.n_predict = resolvedPredict;
       if (p.chat.samplers) S.samplers = [...p.chat.samplers];
       if (p.chat.stop) S.stop = [...p.chat.stop];
       if (p.chat.systemPrompt !== undefined) S.system_prompt = p.chat.systemPrompt;
@@ -61,6 +62,7 @@ async function initSettings() {
 
     if (p.reasoning) {
       S.reasoning = !!p.reasoning.enabled;
+      if (p.reasoning.budget !== undefined) S.reasoning_budget = p.reasoning.budget;
     }
 
     if (p.chatTemplateFile) {

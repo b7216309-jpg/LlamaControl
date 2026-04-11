@@ -62,7 +62,13 @@ function createServerManager({
     if (profile.chatTemplateFile) args.push("--chat-template-file", profile.chatTemplateFile);
     if (profile.mmprojFile) args.push("--mmproj", profile.mmprojFile);
     if (profile.performance.flashAttn) args.push("--flash-attn", "on");
-    if (profile.reasoning.enabled) args.push("--reasoning-format", profile.reasoning.format);
+    if (profile.reasoning && typeof profile.reasoning.enabled === "boolean") {
+      args.push("--reasoning", profile.reasoning.enabled ? "on" : "off");
+    }
+    if (profile.reasoning?.enabled) args.push("--reasoning-format", profile.reasoning.format || "deepseek");
+    if (profile.reasoning?.enabled && Number.isFinite(Number(profile.reasoning.budget)) && Number(profile.reasoning.budget) > 0) {
+      args.push("--reasoning-budget", String(Number(profile.reasoning.budget)));
+    }
     if (profile.chat.nPredict && profile.chat.nPredict > 0) args.push("--n-predict", String(profile.chat.nPredict));
     if (profile.flags.noContextShift) args.push("--no-context-shift");
     if (profile.flags.contBatching) args.push("--cont-batching");

@@ -14,6 +14,7 @@ function syncGaugesToSettings() {
     "s-nubatch": { key: "n_ubatch", fmt: "i" },
     "s-ngl": { key: "n_gpu_layers", fmt: "i" },
     "s-thr": { key: "threads", fmt: "i" },
+    "s-rbud": { key: "reasoning_budget", fmt: "budget" },
   };
 
   for (const [id, { key }] of Object.entries(gaugeMap)) {
@@ -75,6 +76,7 @@ async function saveSettingsToConfig() {
     p.chat.repeatLastN = S.repeat_last_n;
     p.chat.seed = S.seed;
     p.chat.nPredict = S.n_predict;
+    if (S.n_predict > 0) p.chat.maxTokens = S.n_predict;
     p.chat.samplers = [...S.samplers];
     p.chat.stop = [...S.stop];
     p.chat.systemPrompt = S.system_prompt;
@@ -93,6 +95,7 @@ async function saveSettingsToConfig() {
     p.flags.extraArgs = S.extra_args || "";
     p.chat.cachePrompt = !!S.cache_prompt;
     p.reasoning.enabled = !!S.reasoning;
+    p.reasoning.budget = S.reasoning_budget;
 
     if (S.chat_template !== "jinja") {
       p.chatTemplateFile = "";

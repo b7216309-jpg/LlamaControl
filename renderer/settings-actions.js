@@ -66,7 +66,11 @@ function buildLaunchFlagBadges({ host, port, parallel, alias, tmplFile, mmproj }
   if (S.cont_batching) badges.push({ t: "--cont-batching", c: "b-gr" });
   if (S.mlock) badges.push({ t: "--mlock", c: "b-gr" });
   if (S.no_mmap) badges.push({ t: "--no-mmap", c: "b-rd" });
+  badges.push({ t: "--reasoning " + (S.reasoning ? "on" : "off"), c: "b-vi" });
   if (S.reasoning) badges.push({ t: "--reasoning-format deepseek", c: "b-vi" });
+  if (S.reasoning && Number.isFinite(Number(S.reasoning_budget)) && Number(S.reasoning_budget) > 0) {
+    badges.push({ t: "--reasoning-budget " + Number(S.reasoning_budget), c: "b-vi" });
+  }
   if (tmplFile) badges.push({ t: "--chat-template-file " + tmplFile, c: "b-fg3" });
   if (mmproj) badges.push({ t: "--mmproj " + mmproj, c: "b-fg3" });
   if (S.extra_args && S.extra_args.trim()) badges.push({ t: S.extra_args.trim(), c: "b-fg3" });

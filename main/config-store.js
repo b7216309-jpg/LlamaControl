@@ -43,7 +43,18 @@ function normalizeConfig(raw) {
     if (profile.flags.noContextShift === undefined) profile.flags.noContextShift = true;
     if (profile.flags.extraArgs === undefined) profile.flags.extraArgs = "";
 
+    profile.reasoning = profile.reasoning || {};
+    if (profile.reasoning.enabled === undefined) profile.reasoning.enabled = false;
+    if (profile.reasoning.format === undefined) profile.reasoning.format = "deepseek";
+    if (profile.reasoning.budget === undefined) profile.reasoning.budget = 8192;
+
     profile.chat = profile.chat || {};
+    if (profile.chat.nPredict === undefined && Number.isFinite(Number(profile.chat.maxTokens))) {
+      profile.chat.nPredict = Number(profile.chat.maxTokens);
+    }
+    if (profile.chat.maxTokens === undefined && Number.isFinite(Number(profile.chat.nPredict)) && Number(profile.chat.nPredict) > 0) {
+      profile.chat.maxTokens = Number(profile.chat.nPredict);
+    }
     if (profile.chat.cachePrompt === undefined) profile.chat.cachePrompt = true;
 
     profile.performance = profile.performance || {};

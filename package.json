@@ -6,8 +6,7 @@
     "check": "node scripts/check.js",
     "smoke": "node scripts/smoke.js",
     "verify": "npm run check && npm run smoke",
-    "start": "electron .",
-    "demo": "electron demo-main.js"
+    "start": "electron ."
   },
   "devDependencies": {
     "electron": "^35.0.0"

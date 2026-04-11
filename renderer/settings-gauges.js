@@ -24,6 +24,7 @@ const S = {
   cache_type_v: "q8_0",
   chat_template: "jinja",
   reasoning: true,
+  reasoning_budget: 8192,
   extra_args: "",
   system_prompt: "",
   stop: [],
@@ -52,6 +53,7 @@ function blkFmt(el, val) {
   if (fmt === "f2") return parseFloat(val).toFixed(2);
   if (fmt === "i") return String(Math.round(val));
   if (fmt === "inf") return parseFloat(val) <= -1 ? "INF" : String(Math.round(val));
+  if (fmt === "budget") return parseFloat(val).toFixed(0);
   return String(val);
 }
 
