@@ -74,6 +74,7 @@ requireFile("preload.js");
 
 const repoFiles = walkFiles(repoRoot).map(rel).sort();
 const jsFiles = repoFiles.filter((file) => file.endsWith(".js"));
+const jsSourceText = jsFiles.map((file) => readRepoFile(file)).join("\n");
 
 for (const file of jsFiles) {
   syntaxCheck(file);
@@ -111,9 +112,8 @@ for (const scriptSrc of rendererScripts) {
 }
 
 const preloadJs = readRepoFile("preload.js");
-const mainJs = readRepoFile("main.js");
 const invokeChannels = extractMatches(preloadJs, /ipcRenderer\.invoke\("([^"]+)"/g);
-const handledChannels = new Set(extractMatches(mainJs, /ipcMain\.handle\("([^"]+)"/g));
+const handledChannels = new Set(extractMatches(jsSourceText, /ipcMain\.handle\("([^"]+)"/g));
 
 for (const channel of invokeChannels) {
   if (handledChannels.has(channel)) {
@@ -125,7 +125,7 @@ for (const channel of invokeChannels) {
 
 const listenChannels = extractMatches(preloadJs, /ipcRenderer\.on\("([^"]+)"/g);
 for (const channel of listenChannels) {
-  if (mainJs.includes(`"${channel}"`) || mainJs.includes(`'${channel}'`)) {
+  if (jsSourceText.includes(`"${channel}"`) || jsSourceText.includes(`'${channel}'`)) {
     pass(`IPC event ${channel}`);
   } else {
     fail(`missing main-process usage for event channel ${channel}`);

@@ -259,8 +259,7 @@ function startFakeLlmServer() {
       res.end(JSON.stringify(fakeLlmSlots()));
 
     } else if (req.url === "/v1/chat/completions" && req.method === "POST") {
-      let body = "";
-      req.on("data", c => body += c);
+      req.resume();
       req.on("end", () => {
         res.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", "Connection": "keep-alive" });
         const response = CANNED_RESPONSES[Math.floor(Math.random() * CANNED_RESPONSES.length)];
@@ -342,8 +341,6 @@ function registerIPC(win) {
   });
 
   // Chat — handled by fake HTTP server, but keep IPC stubs
-  ipcMain.handle("chat-send", async () => ({ ok: true }));
-  ipcMain.handle("chat-stop", async () => ({ ok: true }));
 
   // Config & profiles — read-only in demo
   ipcMain.handle("get-config", async () => DEMO_CONFIG);
@@ -363,7 +360,7 @@ function registerIPC(win) {
 
   // Terminal — real PTY if available
   const terminals = {};
-  ipcMain.handle("pty-create", (event, id, shellCmd) => {
+  ipcMain.handle("pty-create", (_, id, shellCmd) => {
     if (terminals[id]) return { ok: true, msg: "already exists" };
     const shell = shellCmd || (process.platform === "win32" ? "powershell.exe" : "bash");
     if (pty) {
@@ -384,16 +381,16 @@ function registerIPC(win) {
       return { ok: true, mode: "spawn" };
     } catch (e) { return { ok: false, msg: e.message }; }
   });
-  ipcMain.handle("pty-write", (event, id, data) => { const t = terminals[id]; if (!t) return; if (t.type === "pty") t.handle.write(data); else t.handle.stdin.write(data); });
-  ipcMain.handle("pty-resize", (event, id, cols, rows) => { const t = terminals[id]; if (t && t.type === "pty") t.handle.resize(cols, rows); });
-  ipcMain.handle("pty-kill", (event, id) => { const t = terminals[id]; if (!t) return; t.handle.kill(); delete terminals[id]; });
+  ipcMain.handle("pty-write", (_, id, data) => { const t = terminals[id]; if (!t) return; if (t.type === "pty") t.handle.write(data); else t.handle.stdin.write(data); });
+  ipcMain.handle("pty-resize", (_, id, cols, rows) => { const t = terminals[id]; if (t && t.type === "pty") t.handle.resize(cols, rows); });
+  ipcMain.handle("pty-kill", (_, id) => { const t = terminals[id]; if (!t) return; t.handle.kill(); delete terminals[id]; });
 
   // Window controls — real
   ipcMain.handle("window-minimize", () => { if (win) win.minimize(); });
   ipcMain.handle("window-maximize", () => { if (win) { win.isMaximized() ? win.unmaximize() : win.maximize(); } });
   ipcMain.handle("window-close", () => { if (win) win.close(); });
-  ipcMain.handle("window-set-bounds", (event, bounds) => { if (win) win.setBounds(bounds); });
-  ipcMain.handle("window-set-on-top", (event, flag) => { if (win) win.setAlwaysOnTop(flag, "floating"); });
+  ipcMain.handle("window-set-bounds", (_, bounds) => { if (win) win.setBounds(bounds); });
+  ipcMain.handle("window-set-on-top", (_, flag) => { if (win) win.setAlwaysOnTop(flag, "floating"); });
   ipcMain.handle("window-get-bounds", () => win ? win.getBounds() : null);
 }
 

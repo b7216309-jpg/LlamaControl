@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -237,7 +237,7 @@ input[type=number]{-moz-appearance:textfield;}
 .tbl th{color:var(--fg2);text-align:left;font-weight:400;border-bottom:1px solid var(--bdr);padding:2px 4px;font-size:9px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .tbl td{padding:2px 4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .tbl tr:hover td{background:var(--bg2);}
-/* table scroll wrapper — adds room for box-title overlay */
+/* table scroll wrapper â€” adds room for box-title overlay */
 .tbl-wrap{overflow-y:auto;overflow-x:hidden;flex:1;min-height:0;padding-top:2px;}
 
 /* log */
@@ -324,7 +324,7 @@ if(window.__module){module=window.__module;if(window.__exports)exports=window.__
   </div>
 </div>
 
-<!-- ══════════ MINI HUD ══════════ -->
+<!-- â•â•â•â•â•â•â•â•â•â• MINI HUD â•â•â•â•â•â•â•â•â•â• -->
 <div id="mini-hud" style="display:none;flex-direction:column;background:var(--bg1);border:1px solid var(--bdr);position:fixed;bottom:24px;right:16px;z-index:9000;min-width:260px;font-family:var(--f);">
 
   <!-- mini topbar -->
@@ -395,7 +395,7 @@ if(window.__module){module=window.__module;if(window.__exports)exports=window.__
 </div>
 <div id="main">
 
-<!-- ══════════ SIDEBAR ══════════ -->
+<!-- â•â•â•â•â•â•â•â•â•â• SIDEBAR â•â•â•â•â•â•â•â•â•â• -->
 <div class="pane" id="sidebar">
 
   <!-- CPU -->
@@ -491,7 +491,7 @@ if(window.__module){module=window.__module;if(window.__exports)exports=window.__
 
 <div class="drag-v" id="drag-main"></div>
 
-<!-- ══════════ LLM AREA ══════════ -->
+<!-- â•â•â•â•â•â•â•â•â•â• LLM AREA â•â•â•â•â•â•â•â•â•â• -->
 <div class="pane" id="llm-area">
   <div id="llm-boxes" style="flex:1;display:flex;flex-direction:column;overflow:hidden;min-height:0;">
 
@@ -667,7 +667,7 @@ if(window.__module){module=window.__module;if(window.__exports)exports=window.__
   </div>
   </div><!-- /llm-boxes -->
 
-  <!-- CHAT INPUT BAR — anchored at bottom of llm-area, outside overflow zone -->
+  <!-- CHAT INPUT BAR â€” anchored at bottom of llm-area, outside overflow zone -->
   <div id="chat-input-bar" style="display:flex;gap:0;border-top:1px solid var(--bdr);flex-shrink:0;background:var(--bg);">
     <textarea id="chat-input" rows="2" placeholder="Message... (Enter to send, Shift+Enter for newline)" style="flex:1;resize:none;background:var(--bg1);color:var(--fg);border:none;outline:none;font-family:var(--f);font-size:11px;padding:5px 8px;line-height:1.4;"></textarea>
     <button id="chat-send" style="width:52px;background:transparent;border:none;border-left:1px solid var(--bdr);color:var(--cy);font-family:var(--f);font-size:10px;cursor:pointer;flex-shrink:0;transition:background .1s;" onmouseenter="this.style.background='var(--bg2)'" onmouseleave="this.style.background='transparent'">send</button>
@@ -677,7 +677,7 @@ if(window.__module){module=window.__module;if(window.__exports)exports=window.__
 
 <div class="drag-v" id="drag-settings"></div>
 
-<!-- ══════════ SETTINGS COLUMN ══════════ -->
+<!-- â•â•â•â•â•â•â•â•â•â• SETTINGS COLUMN â•â•â•â•â•â•â•â•â•â• -->
 <div class="pane" id="settings-col" style="width:280px;border-left:1px solid var(--bdr);overflow-y:auto;overflow-x:hidden;flex-shrink:0;transition:width .2s ease;">
 
   <!-- COLLAPSE TOGGLE -->
@@ -940,13 +940,34 @@ if(window.__module){module=window.__module;if(window.__exports)exports=window.__
 
 </div><!-- /app -->
 
+<script src="renderer/core-state.js"></script>
+<script src="renderer/core-dom.js"></script>
+<script src="renderer/core-metrics.js"></script>
+<script src="renderer/core-panels.js"></script>
+<script src="renderer/core-sources.js"></script>
+<script src="renderer/core-system.js"></script>
+<script src="renderer/core-llm.js"></script>
+<script src="renderer/core-monitoring.js"></script>
+<script src="renderer/core-logs.js"></script>
+<script src="renderer/core-popups.js"></script>
+<script src="renderer/core-app-settings.js"></script>
+<script src="renderer/core-layout.js"></script>
 <script src="renderer/core.js"></script>
+<script src="renderer/chat-ui.js"></script>
+<script src="renderer/chat-stream.js"></script>
 <script src="renderer/chat.js"></script>
 <script src="renderer/settings-gauges.js"></script>
+<script src="renderer/settings-samplers.js"></script>
+<script src="renderer/settings-actions.js"></script>
+<script src="renderer/mini-hud.js"></script>
 <script src="renderer/settings-panels.js"></script>
+<script src="renderer/settings-state.js"></script>
 <script src="renderer/settings-sync.js"></script>
+<script src="renderer/settings-paths.js"></script>
 <script src="renderer/settings-profiles.js"></script>
+<script src="renderer/terminal-helpers.js"></script>
 <script src="renderer/terminal.js"></script>
 <script src="renderer/bootstrap.js"></script>
 </body>
 </html>
+
