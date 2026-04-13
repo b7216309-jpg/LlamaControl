@@ -70,6 +70,13 @@ function createServerManager({
       args.push("--reasoning-budget", String(Number(profile.reasoning.budget)));
     }
     if (profile.chat.nPredict && profile.chat.nPredict > 0) args.push("--n-predict", String(profile.chat.nPredict));
+    const perf = profile.performance;
+    if (perf.fitTarget > 0) args.push("--fit-target", String(perf.fitTarget));
+    if (Number.isFinite(perf.cacheRam) && perf.cacheRam !== -1) args.push("--cache-ram", String(perf.cacheRam));
+    if (perf.threadsBatch > 0) args.push("--threads-batch", String(perf.threadsBatch));
+    if (perf.threadsHttp > 0) args.push("--threads-http", String(perf.threadsHttp));
+    if (Number.isFinite(perf.poll)) args.push("--poll", String(perf.poll));
+    if (Number.isFinite(perf.prio) && perf.prio !== 0) args.push("--prio", String(perf.prio));
     if (profile.flags.noContextShift) args.push("--no-context-shift");
     if (profile.flags.contBatching) args.push("--cont-batching");
     if (profile.flags.mlock) args.push("--mlock");
@@ -98,8 +105,12 @@ function createServerManager({
   function startDetachedServer() {
     return new Promise((resolve, reject) => {
       const config = configStore.getConfig();
+      const profile = configStore.getActiveProfile();
+      const serverExe = profile.serverVariant === "turboquant"
+        ? (config.llamaServerTurboExe || config.llamaServerExe)
+        : config.llamaServerExe;
       const logStream = fs.openSync(logFile, "w");
-      const child = spawn(config.llamaServerExe, buildServerArgs(), {
+      const child = spawn(serverExe, buildServerArgs(), {
         detached: true,
         stdio: ["ignore", logStream, logStream],
         env: buildServerEnv(),

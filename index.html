@@ -723,6 +723,8 @@ if(window.__module){module=window.__module;if(window.__exports)exports=window.__
     <div class="box-title" style="color:var(--fg2)">[ Paths &amp; CUDA ]</div>
     <div class="box-body" style="gap:5px;">
       <div class="s-row" style="grid-template-columns:60px 1fr 0;"><label class="s-lbl">server</label><input type="text" class="s-num" id="s-serverexe" style="width:100%" oninput="savePaths()"></div>
+      <div class="s-row" style="grid-template-columns:60px 1fr 0;"><label class="s-lbl">turbo</label><input type="text" class="s-num" id="s-serverturbo" style="width:100%" oninput="savePaths()"></div>
+      <div class="s-note">turboquant fork exe. place it next to standard server</div>
       <div class="s-row" style="grid-template-columns:60px 1fr 0;"><label class="s-lbl">models</label><input type="text" class="s-num" id="s-modelsdir" style="width:100%" oninput="savePaths()"></div>
       <div class="div"></div>
       <div class="s-check"><label><input type="checkbox" id="s-cudagraph" onchange="savePaths()"><span class="chk"></span> CUDA graph opt</label></div>
@@ -829,6 +831,15 @@ if(window.__module){module=window.__module;if(window.__exports)exports=window.__
   <div class="box" style="flex:0 0 auto;border-left:none;border-right:none;">
     <div class="box-title" style="color:var(--fg2)">[ Server ]</div>
     <div class="box-body" style="gap:5px;">
+      <div class="s-row" style="height:auto;align-items:flex-start;flex-direction:column;gap:3px;">
+        <label class="s-lbl">server_variant</label>
+        <select class="s-sel" id="s-variant" onchange="sSet('server_variant',this.value)">
+          <option value="standard" selected>standard</option>
+          <option value="turboquant">turboquant</option>
+        </select>
+      </div>
+      <div class="s-note">which llama-server binary this profile launches</div>
+      <div class="div"></div>
       <div class="s-row"><label class="s-lbl">n_ctx</label>
         <div class="blk-gauge" id="s-nctx" data-min="512" data-max="262144" data-step="512" data-val="81920" data-key="n_ctx" data-fmt="i"></div>
         <span class="s-val" id="sv-nctx">81920</span>
@@ -866,12 +877,16 @@ if(window.__module){module=window.__module;if(window.__exports)exports=window.__
         <select class="s-sel" id="s-ctk" onchange="sSet('cache_type_k',this.value)">
           <option value="f32">f32</option>
           <option value="f16">f16</option>
+          <option value="bf16">bf16</option>
           <option value="q8_0" selected>q8_0</option>
           <option value="q5_1">q5_1</option>
           <option value="q5_0">q5_0</option>
           <option value="iq4_nl">iq4_nl</option>
           <option value="q4_1">q4_1</option>
           <option value="q4_0">q4_0</option>
+          <option value="turbo2">turbo2</option>
+          <option value="turbo3">turbo3</option>
+          <option value="turbo4">turbo4</option>
         </select>
       </div>
       <div class="s-row" style="height:auto;align-items:flex-start;flex-direction:column;gap:3px;">
@@ -879,14 +894,56 @@ if(window.__module){module=window.__module;if(window.__exports)exports=window.__
         <select class="s-sel" id="s-ctv" onchange="sSet('cache_type_v',this.value)">
           <option value="f32">f32</option>
           <option value="f16">f16</option>
+          <option value="bf16">bf16</option>
           <option value="q8_0" selected>q8_0</option>
           <option value="q5_1">q5_1</option>
           <option value="q5_0">q5_0</option>
           <option value="iq4_nl">iq4_nl</option>
           <option value="q4_1">q4_1</option>
           <option value="q4_0">q4_0</option>
+          <option value="turbo2">turbo2</option>
+          <option value="turbo3">turbo3</option>
+          <option value="turbo4">turbo4</option>
         </select>
       </div>
+      <div class="div"></div>
+      <div class="s-note" style="color:var(--or)">[ TurboQuant ]</div>
+      <div class="s-row"><label class="s-lbl">fit_target</label>
+        <div class="blk-gauge" id="s-fitt" data-min="0" data-max="4096" data-step="64" data-val="0" data-key="fit_target" data-fmt="i"></div>
+        <span class="s-val" id="sv-fitt">0</span>
+      </div>
+      <div class="s-note">VRAM margin per device (MiB). 0 = disabled. 768 is a good starting point</div>
+      <div class="s-row"><label class="s-lbl">cache_ram</label>
+        <div class="blk-gauge" id="s-cram" data-min="-1" data-max="32768" data-step="256" data-val="-1" data-key="cache_ram" data-fmt="i"></div>
+        <span class="s-val" id="sv-cram">-1</span>
+      </div>
+      <div class="s-note">max cache size MiB. -1 = no limit, 0 = disable cache</div>
+      <div class="s-row"><label class="s-lbl">threads_batch</label>
+        <div class="blk-gauge" id="s-thb" data-min="0" data-max="16" data-step="1" data-val="0" data-key="threads_batch" data-fmt="i"></div>
+        <span class="s-val" id="sv-thb">0</span>
+      </div>
+      <div class="s-note">batch threads. 0 = same as threads</div>
+      <div class="s-row"><label class="s-lbl">threads_http</label>
+        <div class="blk-gauge" id="s-thh" data-min="0" data-max="8" data-step="1" data-val="0" data-key="threads_http" data-fmt="i"></div>
+        <span class="s-val" id="sv-thh">0</span>
+      </div>
+      <div class="s-note">HTTP handler threads. 0 = default</div>
+      <div class="s-row"><label class="s-lbl">poll</label>
+        <div class="blk-gauge" id="s-poll" data-min="0" data-max="100" data-step="1" data-val="0" data-key="poll" data-fmt="i"></div>
+        <span class="s-val" id="sv-poll">0</span>
+      </div>
+      <div class="s-note">polling level 0-100. 0 = no polling (saves CPU)</div>
+      <div class="s-row" style="height:auto;align-items:flex-start;flex-direction:column;gap:3px;">
+        <label class="s-lbl">prio</label>
+        <select class="s-sel" id="s-prio" onchange="sSet('prio',parseInt(this.value))">
+          <option value="-1">low (-1)</option>
+          <option value="0" selected>normal (0)</option>
+          <option value="1">medium (1)</option>
+          <option value="2">high (2)</option>
+          <option value="3">realtime (3)</option>
+        </select>
+      </div>
+      <div class="s-note">process/thread priority</div>
       <div class="div"></div>
       <div class="s-row" style="height:auto;align-items:flex-start;flex-direction:column;gap:3px;">
         <label class="s-lbl">extra flags</label>

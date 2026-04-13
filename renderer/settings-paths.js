@@ -2,6 +2,7 @@ async function loadPaths() {
   try {
     const config = await window.api.getConfig();
     document.getElementById("s-serverexe").value = config.llamaServerExe || "";
+    document.getElementById("s-serverturbo").value = config.llamaServerTurboExe || "";
     document.getElementById("s-modelsdir").value = config.modelsDirectory || "";
     const p = config.profiles[config.activeProfile];
     document.getElementById("s-cudagraph").checked = p?.performance?.cudaGraphOpt || false;
@@ -13,6 +14,7 @@ async function savePaths() {
   try {
     const config = await window.api.getConfig();
     config.llamaServerExe = document.getElementById("s-serverexe").value;
+    config.llamaServerTurboExe = document.getElementById("s-serverturbo").value;
     config.modelsDirectory = document.getElementById("s-modelsdir").value;
     const p = config.profiles[config.activeProfile];
     p.performance.cudaGraphOpt = document.getElementById("s-cudagraph").checked;

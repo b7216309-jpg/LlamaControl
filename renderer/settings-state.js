@@ -15,6 +15,11 @@ function syncGaugesToSettings() {
     "s-ngl": { key: "n_gpu_layers", fmt: "i" },
     "s-thr": { key: "threads", fmt: "i" },
     "s-rbud": { key: "reasoning_budget", fmt: "budget" },
+    "s-fitt": { key: "fit_target", fmt: "i" },
+    "s-cram": { key: "cache_ram", fmt: "i" },
+    "s-thb": { key: "threads_batch", fmt: "i" },
+    "s-thh": { key: "threads_http", fmt: "i" },
+    "s-poll": { key: "poll", fmt: "i" },
   };
 
   for (const [id, { key }] of Object.entries(gaugeMap)) {
@@ -42,12 +47,16 @@ function syncGaugesToSettings() {
   const selMap = {
     "s-ctk": "cache_type_k",
     "s-ctv": "cache_type_v",
+    "s-prio": "prio",
     "s-tmpl": "chat_template",
   };
   for (const [id, key] of Object.entries(selMap)) {
     const el = document.getElementById(id);
     if (el && S[key]) el.value = S[key];
   }
+
+  const variantEl = document.getElementById("s-variant");
+  if (variantEl) variantEl.value = S.server_variant || "standard";
 
   const extraArgsEl = document.getElementById("s-extraargs");
   if (extraArgsEl) extraArgsEl.value = S.extra_args || "";
@@ -65,6 +74,8 @@ async function saveSettingsToConfig() {
     const profileName = config.activeProfile;
     const p = config.profiles[profileName];
     if (!p) return;
+
+    p.serverVariant = S.server_variant || "standard";
 
     p.chat.temperature = S.temperature;
     p.chat.topP = S.top_p;
@@ -88,6 +99,12 @@ async function saveSettingsToConfig() {
     p.performance.flashAttn = S.flash_attn;
     p.performance.cacheTypeK = S.cache_type_k;
     p.performance.cacheTypeV = S.cache_type_v;
+    p.performance.fitTarget = S.fit_target;
+    p.performance.cacheRam = S.cache_ram;
+    p.performance.threadsBatch = S.threads_batch;
+    p.performance.threadsHttp = S.threads_http;
+    p.performance.poll = S.poll;
+    p.performance.prio = S.prio;
     p.flags.noContextShift = S.no_context_shift;
     p.flags.contBatching = S.cont_batching;
     p.flags.mlock = S.mlock;

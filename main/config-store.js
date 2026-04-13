@@ -32,6 +32,8 @@ function normalizeConfig(raw) {
     const profile = cfg.profiles[name];
     if (!profile || typeof profile !== "object") continue;
 
+    if (profile.serverVariant === undefined) profile.serverVariant = "standard";
+
     profile.server = profile.server || {};
     if (profile.server.nUbatch === undefined) profile.server.nUbatch = 2048;
     if (profile.server.parallel === undefined) profile.server.parallel = 1;
@@ -60,6 +62,12 @@ function normalizeConfig(raw) {
     profile.performance = profile.performance || {};
     if (profile.performance.cacheTypeK === undefined) profile.performance.cacheTypeK = "q8_0";
     if (profile.performance.cacheTypeV === undefined) profile.performance.cacheTypeV = "q8_0";
+    if (profile.performance.fitTarget === undefined) profile.performance.fitTarget = 0;
+    if (profile.performance.cacheRam === undefined) profile.performance.cacheRam = -1;
+    if (profile.performance.threadsBatch === undefined) profile.performance.threadsBatch = 0;
+    if (profile.performance.threadsHttp === undefined) profile.performance.threadsHttp = 0;
+    if (profile.performance.poll === undefined) profile.performance.poll = 0;
+    if (profile.performance.prio === undefined) profile.performance.prio = 0;
   }
 
   return cfg;
@@ -95,13 +103,15 @@ function autoResolveProfileModels(cfg) {
   if (!needsResolve) return false;
 
   const allModels = findGgufFiles(dir);
-  const mainModels = allModels.filter((file) => !/^mmproj/i.test(path.basename(file)));
+  const mainModels = allModels.filter((file) => !/mmproj/i.test(path.basename(file)));
   let changed = false;
 
   const hints = {
     HERETIC: /heretic/i,
+    "TURBOQUANT Qwopus": /abliterat/i,
+    "TURBOQUANT HauhauCS": /qwen.*hauhaucs|hauhaucs.*qwen/i,
     HauhauCS: /hauhaucs|hauhau/i,
-    Qwopus: /qwopus/i,
+    Qwopus: /qwopus|qwen3\.5.*q5_k/i,
   };
 
   for (const name of Object.keys(cfg.profiles)) {
@@ -124,7 +134,7 @@ function autoResolveProfileModels(cfg) {
     const parentDir = path.dirname(match);
     try {
       const siblings = fs.readdirSync(parentDir);
-      const mmproj = siblings.find((file) => /^mmproj.*\.gguf$/i.test(file));
+      const mmproj = siblings.find((file) => /mmproj.*\.gguf$/i.test(file));
       if (mmproj && !profile.mmprojFile) {
         profile.mmprojFile = path.join(parentDir, mmproj);
       }
@@ -152,7 +162,7 @@ function scanModelsDirectory(modelsDir) {
         scanDir(fullPath);
         continue;
       }
-      if (!entry.name.endsWith(".gguf") || entry.name.toLowerCase().startsWith("mmproj")) continue;
+      if (!entry.name.endsWith(".gguf") || /mmproj/i.test(entry.name)) continue;
 
       let stats;
       let parentFiles;
@@ -166,7 +176,7 @@ function scanModelsDirectory(modelsDir) {
 
       const chatTemplate = parentFiles.find((file) => /^chat_template.*\.jinja$/i.test(file) && !/instruct/i.test(file));
       const chatTemplateInstruct = parentFiles.find((file) => /^chat_template.*instruct.*\.jinja$/i.test(file));
-      const mmproj = parentFiles.find((file) => /^mmproj.*\.gguf$/i.test(file));
+      const mmproj = parentFiles.find((file) => /mmproj.*\.gguf$/i.test(file));
 
       results.push({
         path: fullPath,

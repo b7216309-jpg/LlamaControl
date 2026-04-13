@@ -19,6 +19,8 @@ async function initSettings() {
     const p = config.profiles[config.activeProfile] || Object.values(config.profiles)[0];
     if (!p) return;
 
+    if (p.serverVariant !== undefined) S.server_variant = p.serverVariant;
+
     if (p.chat) {
       if (p.chat.temperature !== undefined) S.temperature = p.chat.temperature;
       if (p.chat.topP !== undefined) S.top_p = p.chat.topP;
@@ -48,6 +50,12 @@ async function initSettings() {
       if (p.performance.flashAttn !== undefined) S.flash_attn = p.performance.flashAttn;
       if (p.performance.cacheTypeK !== undefined) S.cache_type_k = p.performance.cacheTypeK;
       if (p.performance.cacheTypeV !== undefined) S.cache_type_v = p.performance.cacheTypeV;
+      if (p.performance.fitTarget !== undefined) S.fit_target = p.performance.fitTarget;
+      if (p.performance.cacheRam !== undefined) S.cache_ram = p.performance.cacheRam;
+      if (p.performance.threadsBatch !== undefined) S.threads_batch = p.performance.threadsBatch;
+      if (p.performance.threadsHttp !== undefined) S.threads_http = p.performance.threadsHttp;
+      if (p.performance.poll !== undefined) S.poll = p.performance.poll;
+      if (p.performance.prio !== undefined) S.prio = p.performance.prio;
     }
 
     if (p.flags) {

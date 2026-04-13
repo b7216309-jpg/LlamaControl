@@ -31,7 +31,9 @@ async function getLaunchProfileDetails() {
     const profile = config?.profiles?.[config?.activeProfile];
     if (!profile) return fallback;
     return {
-      serverExe: config.llamaServerExe || fallback.serverExe,
+      serverExe: profile.serverVariant === "turboquant"
+        ? (config.llamaServerTurboExe || config.llamaServerExe || fallback.serverExe)
+        : (config.llamaServerExe || fallback.serverExe),
       modelPath: profile.modelPath || fallback.modelPath,
       host: profile.server?.host ?? fallback.host,
       port: profile.server?.port ?? fallback.port,
@@ -61,6 +63,12 @@ function buildLaunchFlagBadges({ host, port, parallel, alias, tmplFile, mmproj }
   ];
 
   if (alias) badges.push({ t: "--alias " + alias, c: "b-fg3" });
+  if (S.fit_target > 0) badges.push({ t: "--fit-target " + S.fit_target, c: "b-or" });
+  if (Number.isFinite(S.cache_ram) && S.cache_ram !== -1) badges.push({ t: "--cache-ram " + S.cache_ram, c: "b-or" });
+  if (S.threads_batch > 0) badges.push({ t: "--threads-batch " + S.threads_batch, c: "b-am" });
+  if (S.threads_http > 0) badges.push({ t: "--threads-http " + S.threads_http, c: "b-am" });
+  if (Number.isFinite(S.poll)) badges.push({ t: "--poll " + S.poll, c: "b-dm" });
+  if (Number.isFinite(S.prio) && S.prio !== 0) badges.push({ t: "--prio " + S.prio, c: "b-dm" });
   if (S.flash_attn) badges.push({ t: "--flash-attn on", c: "b-gr" });
   if (S.no_context_shift) badges.push({ t: "--no-context-shift", c: "b-rd" });
   if (S.cont_batching) badges.push({ t: "--cont-batching", c: "b-gr" });
